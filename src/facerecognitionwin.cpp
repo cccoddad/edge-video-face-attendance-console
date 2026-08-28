@@ -22,6 +22,8 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mRecognitionInputActive(false),
        mRecognitionRequestPending(false),
        mRecognitionRequestId(0),
+       mTrackerRequestPending(false),
+       mTrackerRequestId(0),
        mthread(new QThread(this)),
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
        mAttendanceRepository(QSqlDatabase::database())
@@ -38,8 +40,12 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     mthread->start();
     //由于movetothread线程里面的任务函数必须有信号启动，所以用信号关联任务函数
     connect(this, &FaceRecognitionWin::sendQueryCmd, &mfaceObject, &QFaceObject::queryface, Qt::QueuedConnection);
+    connect(this, &FaceRecognitionWin::sendTrackerCmd, &mfaceObject, &QFaceObject::trackerface,
+            Qt::QueuedConnection);
     //当查询到结果通过信号发送
     connect(&mfaceObject,&QFaceObject::sendQueryResult,this, &FaceRecognitionWin::recvQueryResult);
+    connect(&mfaceObject, &QFaceObject::sendTrackerResult, this,
+            &FaceRecognitionWin::recvTrackerResult);
 }
 
 //查询结果
@@ -136,6 +142,9 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         mRecognitionRequestPending = false;
         ++mRecognitionRequestId;
         mPendingRecognitionFrame.release();
+        mTrackerRequestPending = false;
+        ++mTrackerRequestId;
+        mPendingTrackerFrame.release();
         mAttendanceStateMachine.reset();
         updateAttendanceStatus(QStringLiteral("视频输入已停止"));
         return;
@@ -152,24 +161,11 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
                                                                   Qt::KeepAspectRatio,
                                                                   Qt::SmoothTransformation));
 
-        //跟踪人脸
-        const cv::Mat recognitionFrame = videoImage.clone();
-        bool shouldQuery = false;
-        const bool invoked = QMetaObject::invokeMethod(&mfaceObject, "trackerface",
-                                                        Qt::BlockingQueuedConnection,
-                                                        Q_RETURN_ARG(bool, shouldQuery),
-                                                        Q_ARG(cv::Mat, recognitionFrame));
-        if (!invoked || !shouldQuery) {
-            mRecognitionRequestPending = false;
-            ++mRecognitionRequestId;
-            mAttendanceStateMachine.reset();
-            updateAttendanceStatus(QStringLiteral("等待单人正脸"));
-        } else if (!mRecognitionRequestPending) {
-            mRecognitionRequestPending = true;
-            ++mRecognitionRequestId;
-            mPendingRecognitionFrame = recognitionFrame.clone();
-            //去数据库查询人脸
-            emit sendQueryCmd(recognitionFrame, mRecognitionRequestId);
+        if (!mTrackerRequestPending && !mRecognitionRequestPending) {
+            mTrackerRequestPending = true;
+            ++mTrackerRequestId;
+            mPendingTrackerFrame = videoImage.clone();
+            emit sendTrackerCmd(mPendingTrackerFrame, mTrackerRequestId);
         }
     }
 }
@@ -203,6 +199,11 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
 {
     stopVideoSource();
 
+    VideoFileSource *videoFileSource = dynamic_cast<VideoFileSource *>(mVideoSource.get());
+    if (videoFileSource) {
+        videoFileSource->setLoopEnabled(AppConfig::localVideoLoopEnabled());
+    }
+
     QString errorMessage;
     if (!mVideoSource->open(filePath, &errorMessage)) {
         updateVideoSourceStatus();
@@ -221,6 +222,9 @@ void FaceRecognitionWin::stopVideoSource()
     mRecognitionRequestPending = false;
     ++mRecognitionRequestId;
     mPendingRecognitionFrame.release();
+    mTrackerRequestPending = false;
+    ++mTrackerRequestId;
+    mPendingTrackerFrame.release();
     mAttendanceStateMachine.reset();
     if (timerid != 0) {
         killTimer(timerid);
@@ -274,7 +278,10 @@ void FaceRecognitionWin::on_recognitionRb_clicked()
         if(win->inherits("QRegisterWidget"))
         {
             QRegisterWidget *twin = (QRegisterWidget*)this->win;
-            disconnect(twin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+            disconnect(twin, &QRegisterWidget::requestPhotoCapture,
+                       this, &FaceRecognitionWin::recvName);
+            disconnect(this, &FaceRecognitionWin::registrationPhotoCaptured,
+                       twin, &QRegisterWidget::handlePhotoCaptureResult);
         }
         delete win; //删除其他界面（注册，查询）
         win = nullptr; //指向nullptr为了是后面判断
@@ -288,14 +295,20 @@ void FaceRecognitionWin::on_registerRb_clicked()
         if(this->win->inherits("QRegisterWidget"))
         {
             QRegisterWidget *twin = (QRegisterWidget*)this->win;
-            disconnect(twin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+            disconnect(twin, &QRegisterWidget::requestPhotoCapture,
+                       this, &FaceRecognitionWin::recvName);
+            disconnect(this, &FaceRecognitionWin::registrationPhotoCaptured,
+                       twin, &QRegisterWidget::handlePhotoCaptureResult);
         }
         delete this->win;
         this->win = nullptr;
     }
     QRegisterWidget *rwin = new  QRegisterWidget(this);//创建注册界面
     rwin->setFaceObject(&mfaceObject);
-    connect(rwin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+    connect(rwin, &QRegisterWidget::requestPhotoCapture,
+            this, &FaceRecognitionWin::recvName);
+    connect(this, &FaceRecognitionWin::registrationPhotoCaptured,
+            rwin, &QRegisterWidget::handlePhotoCaptureResult);
     this->win = rwin;
     rwin->setGeometry(ui->recognitionWidget->geometry());//设置显示位置
     ui->recognitionWidget->hide();//隐藏识别界面
@@ -304,7 +317,41 @@ void FaceRecognitionWin::on_registerRb_clicked()
 
 void FaceRecognitionWin::recvName(const QString &name)
 {
-    cv::imwrite(name.toUtf8().data(), videoImage);
+    captureRegistrationPhoto(name);
+}
+
+void FaceRecognitionWin::captureRegistrationPhoto(const QString &photoPath)
+{
+    if (!mRecognitionInputActive || videoImage.empty()) {
+        emit registrationPhotoCaptured(false, QStringLiteral("视频已停止，请重新打开视频后再拍照"));
+        return;
+    }
+    if (!cv::imwrite(photoPath.toUtf8().constData(), videoImage)) {
+        emit registrationPhotoCaptured(false, QStringLiteral("无法写入注册照片"));
+        return;
+    }
+    emit registrationPhotoCaptured(true, QStringLiteral("拍照成功"));
+}
+
+void FaceRecognitionWin::recvTrackerResult(bool hasSingleFace, quint64 requestId)
+{
+    if (!mRecognitionInputActive || requestId != mTrackerRequestId) {
+        return;
+    }
+    mTrackerRequestPending = false;
+    if (!hasSingleFace) {
+        mAttendanceStateMachine.reset();
+        updateAttendanceStatus(QStringLiteral("等待单人正脸"));
+        return;
+    }
+    if (mRecognitionRequestPending || mPendingTrackerFrame.empty()) {
+        return;
+    }
+
+    mRecognitionRequestPending = true;
+    ++mRecognitionRequestId;
+    mPendingRecognitionFrame = mPendingTrackerFrame.clone();
+    emit sendQueryCmd(mPendingRecognitionFrame, mRecognitionRequestId);
 }
 
 void FaceRecognitionWin::on_queryRb_clicked()
@@ -314,7 +361,10 @@ void FaceRecognitionWin::on_queryRb_clicked()
         if(win->inherits("QRegisterWidget"))
         {
             QRegisterWidget *twin = (QRegisterWidget*)this->win;
-            disconnect(twin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+            disconnect(twin, &QRegisterWidget::requestPhotoCapture,
+                       this, &FaceRecognitionWin::recvName);
+            disconnect(this, &FaceRecognitionWin::registrationPhotoCaptured,
+                       twin, &QRegisterWidget::handlePhotoCaptureResult);
         }
         delete win;
         win = nullptr;

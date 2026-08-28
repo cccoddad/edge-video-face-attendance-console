@@ -28,12 +28,15 @@ public slots:
     //查询人脸
     void queryface(const cv::Mat &faceMat, quint64 requestId);
     //注册人脸
-    int registerface(const cv::Mat &faceMat);
+    void registerface(const cv::Mat &faceMat, quint64 requestId);
+    void deleteface(int faceid);
     //跟踪--当前帧恰好检测到一张人脸时返回 true，供连续帧确认逻辑使用
-    bool trackerface(const cv::Mat &faceMat);
+    void trackerface(const cv::Mat &faceMat, quint64 requestId);
 signals:
     //当查询到人脸的时候把人脸id和相似度发送出来
     void sendQueryResult(int index, float similarity, quint64 requestId);
+    void sendRegistrationResult(int faceid, quint64 requestId, const QString &errorMessage);
+    void sendTrackerResult(bool hasSingleFace, quint64 requestId);
 protected:
     FaceEngine  *mfaceEngine;
     FaceTracker *mfaceTracker;

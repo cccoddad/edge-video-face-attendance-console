@@ -18,7 +18,12 @@ public:
     ~QRegisterWidget();
     void setFaceObject(QFaceObject *mfaceObject);
 signals:
-    void sendName(const QString &name);
+    void requestPhotoCapture(const QString &photoPath);
+    void requestFaceRegistration(const cv::Mat &faceImage, quint64 requestId);
+    void requestFaceDeletion(int faceid);
+public slots:
+    void handlePhotoCaptureResult(bool success, const QString &message);
+    void handleRegistrationResult(int faceid, quint64 requestId, const QString &errorMessage);
 private slots:
     void on_GcameraBt_clicked();
 
@@ -27,6 +32,10 @@ private slots:
 private:
     Ui::QRegisterWidget *ui;
     QFaceObject *mFaceObject;
+    QString m_photoPath;
+    quint64 m_registrationRequestId;
+    bool m_photoCaptured;
+    bool m_registrationPending;
 };
 
 #endif // QREGISTERWIDGET_H

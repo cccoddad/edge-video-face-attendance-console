@@ -72,10 +72,11 @@ void QFaceObject::queryface(const cv::Mat &faceMat, quint64 requestId)
     }
 }
 
-int QFaceObject::registerface(const cv::Mat &faceMat)
+void QFaceObject::registerface(const cv::Mat &faceMat, quint64 requestId)
 {
     if (faceMat.empty()) {
-        return -1;
+        emit sendRegistrationResult(-1, requestId, QStringLiteral("注册照片为空"));
+        return;
     }
     //定义一个seeta的数据结构
     SeetaImageData seetaData ;
@@ -89,16 +90,25 @@ int QFaceObject::registerface(const cv::Mat &faceMat)
         if (faceid >= 0) {
             mfaceEngine->Delete(faceid);
         }
-        return -1;
+        emit sendRegistrationResult(-1, requestId, QStringLiteral("人脸特征注册或保存失败"));
+        return;
     }
-    return faceid;
+    emit sendRegistrationResult(faceid, requestId, QString());
 }
 
-//跟踪人脸，当前帧恰好有一张人脸时返回 true
-bool QFaceObject::trackerface(const cv::Mat &faceMat)
+void QFaceObject::deleteface(int faceid)
+{
+    if (!delID(faceid)) {
+        qWarning() << "delete face registration failed:" << faceid;
+    }
+}
+
+//跟踪人脸，当前帧恰好检测到一张人脸时发送 true
+void QFaceObject::trackerface(const cv::Mat &faceMat, quint64 requestId)
 {
     if (faceMat.empty()) {
-        return false;
+        emit sendTrackerResult(false, requestId);
+        return;
     }
     SeetaImageData seetaData ;
     seetaData.data = faceMat.data;
@@ -106,5 +116,5 @@ bool QFaceObject::trackerface(const cv::Mat &faceMat)
     seetaData.height = faceMat.rows;
     seetaData.channels = faceMat.channels();
     SeetaTrackingFaceInfoArray faceArray = mfaceTracker->track(seetaData);//跟踪,返回人脸数据
-    return faceArray.size == 1;
+    emit sendTrackerResult(faceArray.size == 1, requestId);
 }

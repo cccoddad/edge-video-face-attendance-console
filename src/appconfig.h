@@ -20,6 +20,7 @@ public:
     static int snapshotRetentionDays();
     static QString rtspUrl();
     static int rtspReconnectIntervalMilliseconds();
+    static bool localVideoLoopEnabled();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

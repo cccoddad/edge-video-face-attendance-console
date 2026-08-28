@@ -103,6 +103,12 @@ int AppConfig::rtspReconnectIntervalMilliseconds()
     return ok && value >= 500 && value <= 60000 ? value : 3000;
 }
 
+bool AppConfig::localVideoLoopEnabled()
+{
+    const QString value = qEnvironmentVariable("FACE_ATTENDANCE_LOCAL_VIDEO_LOOP").trimmed();
+    return value == QStringLiteral("1") || value.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

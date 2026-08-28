@@ -31,17 +31,21 @@ private slots:
 
 protected slots:
     void recvName(const QString &name);
+    void recvTrackerResult(bool hasSingleFace, quint64 requestId);
     //接收查询结果
     void recvQueryResult(int index, float similarty, quint64 requestId);
 signals:
     //发送图片给，给到人脸识别对象，（线程来查询-识别）
     void sendQueryCmd(const cv::Mat &faceMat, quint64 requestId);
+    void sendTrackerCmd(const cv::Mat &faceMat, quint64 requestId);
+    void registrationPhotoCaptured(bool success, const QString &message);
 private:
     void openVideoFile(const QString &filePath);
     void stopVideoSource();
     void updateVideoSourceStatus();
     void updateAttendanceStatus(const QString &message, bool failed = false);
     void showUnknownPerson();
+    void captureRegistrationPhoto(const QString &photoPath);
     Ui::FaceRecognitionWin *ui;
     QWidget *win;
     int timerid;
@@ -51,6 +55,9 @@ private:
     bool mRecognitionRequestPending;
     quint64 mRecognitionRequestId;
     cv::Mat mPendingRecognitionFrame;
+    bool mTrackerRequestPending;
+    quint64 mTrackerRequestId;
+    cv::Mat mPendingTrackerFrame;
     //定义一个人脸识别对象
     QFaceObject mfaceObject;
     //定义一个线程用来识别
