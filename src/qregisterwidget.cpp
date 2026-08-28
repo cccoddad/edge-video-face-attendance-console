@@ -28,6 +28,12 @@ QRegisterWidget::QRegisterWidget(QWidget *parent) :
 {
     ui->setupUi(this);
     AppConfig::photoDirectory();
+    const auto invalidatePhoto = [this](const QString &) {
+        invalidateCapturedPhoto();
+    };
+    connect(ui->GnumberLe, &QLineEdit::textChanged, this, invalidatePhoto);
+    connect(ui->GnameLe, &QLineEdit::textChanged, this, invalidatePhoto);
+    connect(ui->GpartmentLe, &QLineEdit::textChanged, this, invalidatePhoto);
 }
 
 QRegisterWidget::~QRegisterWidget()
@@ -61,6 +67,8 @@ void QRegisterWidget::on_GcameraBt_clicked()
     }
     m_photoPath = photoPathForNumber(ui->GnumberLe->text());
     m_photoCaptured = false;
+    ui->GcameraBt->setText(QStringLiteral("正在保存当前视频帧..."));
+    ui->GcameraBt->setEnabled(false);
     emit requestPhotoCapture(m_photoPath);
 }
 
@@ -94,13 +102,29 @@ void QRegisterWidget::handlePhotoCaptureResult(bool success, const QString &mess
 {
     if (!success) {
         m_photoCaptured = false;
+        ui->GcameraBt->setEnabled(true);
+        ui->GcameraBt->setText(QStringLiteral("拍照"));
         QMessageBox::warning(this, QStringLiteral("拍照失败"), message);
         return;
     }
 
     m_photoCaptured = true;
+    ui->GcameraBt->setEnabled(true);
+    ui->GcameraBt->setText(QStringLiteral("已拍照，可注册"));
     ui->GheadLb->setStyleSheet(QString("border:1px solid #123456; border-image: url(%1); border-radius:80px;")
                                .arg(QUrl::fromLocalFile(m_photoPath).toString()));
+}
+
+void QRegisterWidget::invalidateCapturedPhoto()
+{
+    if (!m_photoCaptured) {
+        return;
+    }
+
+    m_photoCaptured = false;
+    m_photoPath.clear();
+    ui->GcameraBt->setText(QStringLiteral("拍照"));
+    ui->GheadLb->setStyleSheet(QStringLiteral("background-color: rgb(255, 255, 0);"));
 }
 
 void QRegisterWidget::handleRegistrationResult(int faceid, quint64 requestId,

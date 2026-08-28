@@ -30,6 +30,7 @@ private slots:
     void on_GregisterBt_clicked();
 
 private:
+    void invalidateCapturedPhoto();
     Ui::QRegisterWidget *ui;
     QFaceObject *mFaceObject;
     QString m_photoPath;
