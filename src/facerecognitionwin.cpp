@@ -2,6 +2,7 @@
 #include "qquerywidget.h"
 #include "qregisterwidget.h"
 #include "appconfig.h"
+#include "snapshotstore.h"
 #include "videofilesource.h"
 #include "ui_facerecognitionwin.h"
 #include <QDateTime>
@@ -105,7 +106,22 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
         return;
     }
     mLastAttendanceConfirmationByNumber.insert(number, now);
-    updateAttendanceStatus(writeResult.message);
+    QString statusMessage = writeResult.message;
+    if (writeResult.status == AttendanceWriteStatus::Inserted) {
+        QString snapshotPath;
+        QString snapshotError;
+        if (!SnapshotStore::save(mPendingRecognitionFrame, number, confirmation.timestamp,
+                                 writeResult.eventKey, &snapshotPath, &snapshotError)) {
+            qWarning() << "attendance snapshot failed:" << snapshotError;
+            statusMessage.append(QStringLiteral("；抓拍保存失败"));
+        } else if (!mAttendanceRepository.updateSnapshotPath(writeResult.eventKey, snapshotPath,
+                                                              &snapshotError)) {
+            qWarning() << "attendance snapshot path update failed:" << snapshotError;
+            SnapshotStore::removeSnapshot(snapshotPath);
+            statusMessage.append(QStringLiteral("；抓拍关联失败"));
+        }
+    }
+    updateAttendanceStatus(statusMessage);
 }
 
 void FaceRecognitionWin::timerEvent(QTimerEvent *)
@@ -119,6 +135,7 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         updateVideoSourceStatus();
         mRecognitionRequestPending = false;
         ++mRecognitionRequestId;
+        mPendingRecognitionFrame.release();
         mAttendanceStateMachine.reset();
         updateAttendanceStatus(QStringLiteral("视频输入已停止"));
         return;
@@ -150,6 +167,7 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         } else if (!mRecognitionRequestPending) {
             mRecognitionRequestPending = true;
             ++mRecognitionRequestId;
+            mPendingRecognitionFrame = recognitionFrame.clone();
             //去数据库查询人脸
             emit sendQueryCmd(recognitionFrame, mRecognitionRequestId);
         }
@@ -202,6 +220,7 @@ void FaceRecognitionWin::stopVideoSource()
     mRecognitionInputActive = false;
     mRecognitionRequestPending = false;
     ++mRecognitionRequestId;
+    mPendingRecognitionFrame.release();
     mAttendanceStateMachine.reset();
     if (timerid != 0) {
         killTimer(timerid);

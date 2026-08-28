@@ -50,6 +50,7 @@ private:
     bool mRecognitionInputActive;
     bool mRecognitionRequestPending;
     quint64 mRecognitionRequestId;
+    cv::Mat mPendingRecognitionFrame;
     //定义一个人脸识别对象
     QFaceObject mfaceObject;
     //定义一个线程用来识别

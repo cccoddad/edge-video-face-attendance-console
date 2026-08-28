@@ -54,9 +54,23 @@ int main(int argc, char *argv[])
 
     AttendanceWriteResult result = repository.record(confirmation, 4 * 60 * 60, "video-file");
     if (result.status != AttendanceWriteStatus::Inserted
-            || result.eventType != AttendanceEventType::CheckIn) {
+            || result.eventType != AttendanceEventType::CheckIn || result.eventKey.isEmpty()) {
         std::fprintf(stderr, "Check-in write failed: %s\n", qPrintable(result.message));
         return 6;
+    }
+
+    QString snapshotError;
+    if (!repository.updateSnapshotPath(result.eventKey, "C:/test/snapshot.jpg", &snapshotError)) {
+        std::fprintf(stderr, "Snapshot path update failed: %s\n", qPrintable(snapshotError));
+        return 14;
+    }
+    QSqlQuery snapshotQuery(database);
+    snapshotQuery.prepare("SELECT snapshot_path FROM recorduser WHERE event_key = ?");
+    snapshotQuery.addBindValue(result.eventKey);
+    if (!snapshotQuery.exec() || !snapshotQuery.next()
+            || snapshotQuery.value(0).toString() != "C:/test/snapshot.jpg") {
+        std::fprintf(stderr, "Snapshot path was not stored\n");
+        return 15;
     }
 
     machine.reset();

@@ -23,6 +23,7 @@ struct AttendanceWriteResult
     AttendanceWriteStatus status = AttendanceWriteStatus::Failed;
     AttendanceEventType eventType = AttendanceEventType::CheckIn;
     QString message;
+    QString eventKey;
 };
 
 class AttendanceRepository
@@ -34,6 +35,8 @@ public:
     AttendanceWriteResult record(const AttendanceConfirmation &confirmation,
                                  int minimumCheckoutIntervalSeconds,
                                  const QString &sourceType);
+    bool updateSnapshotPath(const QString &eventKey, const QString &snapshotPath,
+                            QString *errorMessage = nullptr);
 
     static QString eventTypeText(AttendanceEventType type);
 

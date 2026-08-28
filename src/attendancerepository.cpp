@@ -60,7 +60,8 @@ bool AttendanceRepository::ensureSchema(QString *errorMessage) const
             || !ensureColumn(m_database, "event_type", "TEXT", errorMessage)
             || !ensureColumn(m_database, "event_key", "TEXT", errorMessage)
             || !ensureColumn(m_database, "similarity", "REAL", errorMessage)
-            || !ensureColumn(m_database, "source_type", "TEXT", errorMessage)) {
+            || !ensureColumn(m_database, "source_type", "TEXT", errorMessage)
+            || !ensureColumn(m_database, "snapshot_path", "TEXT", errorMessage)) {
         return false;
     }
 
@@ -157,8 +158,50 @@ AttendanceWriteResult AttendanceRepository::record(const AttendanceConfirmation 
 
     result.status = AttendanceWriteStatus::Inserted;
     result.eventType = eventType;
+    result.eventKey = eventKey;
     result.message = QStringLiteral("%1成功").arg(eventTypeText(eventType));
     return result;
+}
+
+bool AttendanceRepository::updateSnapshotPath(const QString &eventKey, const QString &snapshotPath,
+                                              QString *errorMessage)
+{
+    if (!m_database.isOpen() || eventKey.isEmpty() || snapshotPath.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("抓拍路径回填参数或数据库状态无效");
+        }
+        return false;
+    }
+
+    if (!m_database.transaction()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("开始抓拍路径事务失败：%1").arg(m_database.lastError().text());
+        }
+        return false;
+    }
+
+    QSqlQuery query(m_database);
+    query.prepare("UPDATE recorduser SET snapshot_path = ? WHERE event_key = ?");
+    query.addBindValue(snapshotPath);
+    query.addBindValue(eventKey);
+    if (!query.exec() || query.numRowsAffected() != 1) {
+        const QString error = query.lastError().isValid()
+                ? query.lastError().text() : QStringLiteral("未找到对应考勤事件");
+        m_database.rollback();
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("回填抓拍路径失败：%1").arg(error);
+        }
+        return false;
+    }
+    if (!m_database.commit()) {
+        const QString error = m_database.lastError().text();
+        m_database.rollback();
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("提交抓拍路径事务失败：%1").arg(error);
+        }
+        return false;
+    }
+    return true;
 }
 
 QString AttendanceRepository::eventTypeText(AttendanceEventType type)

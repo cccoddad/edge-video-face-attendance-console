@@ -8,6 +8,7 @@ class AppConfig
 public:
     static QString dataDirectory();
     static QString photoDirectory();
+    static QString snapshotDirectory();
     static QString databasePath();
     static QString faceDatabasePath();
     static QString modelDirectory();
@@ -16,6 +17,7 @@ public:
     static int recognitionConfirmationFrames();
     static int attendanceCooldownSeconds();
     static int minimumCheckoutIntervalSeconds();
+    static int snapshotRetentionDays();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

@@ -28,6 +28,13 @@ QString AppConfig::photoDirectory()
     return path;
 }
 
+QString AppConfig::snapshotDirectory()
+{
+    const QString path = QDir(dataDirectory()).filePath("snapshots");
+    QDir().mkpath(path);
+    return path;
+}
+
 QString AppConfig::databasePath()
 {
     return QDir(dataDirectory()).filePath("attendance.db");
@@ -75,6 +82,13 @@ int AppConfig::minimumCheckoutIntervalSeconds()
     bool ok = false;
     const int value = qEnvironmentVariable("FACE_ATTENDANCE_MINIMUM_CHECKOUT_INTERVAL_SECONDS").toInt(&ok);
     return ok && value >= 0 ? value : 4 * 60 * 60;
+}
+
+int AppConfig::snapshotRetentionDays()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_SNAPSHOT_RETENTION_DAYS").toInt(&ok);
+    return ok && value >= 1 && value <= 3650 ? value : 30;
 }
 
 bool AppConfig::hasRequiredModels(QString *errorMessage)

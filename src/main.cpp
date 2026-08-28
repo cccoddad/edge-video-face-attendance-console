@@ -1,6 +1,7 @@
 #include "facerecognitionwin.h"
 #include "appconfig.h"
 #include "attendancerepository.h"
+#include "snapshotstore.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -51,6 +52,15 @@ int main(int argc, char *argv[])
     if (!attendanceRepository.ensureSchema(&attendanceSchemaError)) {
         QMessageBox::critical(nullptr, "考勤数据库错误", attendanceSchemaError);
         return -1;
+    }
+
+    QString snapshotCleanupError;
+    const int removedSnapshots = SnapshotStore::removeExpired(AppConfig::snapshotRetentionDays(),
+                                                               &snapshotCleanupError);
+    if (removedSnapshots < 0 || !snapshotCleanupError.isEmpty()) {
+        qWarning() << "snapshot cleanup failed:" << snapshotCleanupError;
+    } else if (removedSnapshots > 0) {
+        qInfo() << "removed expired snapshots:" << removedSnapshots;
     }
 
     FaceRecognitionWin window;
