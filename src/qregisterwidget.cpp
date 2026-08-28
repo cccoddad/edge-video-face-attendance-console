@@ -1,11 +1,18 @@
 #include "qregisterwidget.h"
 #include "appconfig.h"
+#include "theme.h"
 #include "ui_qregisterwidget.h"
 
-#include <QDir>
-#include <QMessageBox>
 #include <QDateTime>
+#include <QDir>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPixmap>
 #include <QSqlQuery>
+#include <QStyle>
+#include <QVBoxLayout>
 #include <QDebug>
 #include <QSqlError>
 #include <QMetaObject>
@@ -27,6 +34,7 @@ QRegisterWidget::QRegisterWidget(QWidget *parent) :
     m_registrationPending(false)
 {
     ui->setupUi(this);
+    setupModernLayout();
     AppConfig::photoDirectory();
     const auto invalidatePhoto = [this](const QString &) {
         invalidateCapturedPhoto();
@@ -53,6 +61,55 @@ void QRegisterWidget::setFaceObject(QFaceObject *mfaceObject)
             &QFaceObject::deleteface, Qt::QueuedConnection);
     connect(mFaceObject, &QFaceObject::sendRegistrationResult, this,
             &QRegisterWidget::handleRegistrationResult);
+}
+
+void QRegisterWidget::setupModernLayout()
+{
+    setObjectName(QStringLiteral("QRegisterWidget"));
+    ui->GheadLb->setStyleSheet(QString());
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(14);
+
+    ui->GtitleLb->setObjectName(QStringLiteral("pageTitle"));
+    ui->GtitleLb->setText(QStringLiteral("登记人员"));
+    layout->addWidget(ui->GtitleLb);
+
+    ui->GheadLb->setObjectName(QStringLiteral("avatar"));
+    ui->GheadLb->setFont(font());
+    ui->GheadLb->setFixedSize(128, 128);
+    ui->GheadLb->setText(QStringLiteral("待拍照"));
+    ui->GheadLb->setAlignment(Qt::AlignCenter);
+    ui->GheadLb->style()->unpolish(ui->GheadLb);
+    ui->GheadLb->style()->polish(ui->GheadLb);
+    auto *avatarRow = new QHBoxLayout;
+    avatarRow->addStretch();
+    avatarRow->addWidget(ui->GheadLb);
+    avatarRow->addStretch();
+    layout->addLayout(avatarRow);
+
+    auto *form = new QGridLayout;
+    form->setHorizontalSpacing(12);
+    form->setVerticalSpacing(10);
+    form->addWidget(new QLabel(QStringLiteral("员工编号"), this), 0, 0);
+    form->addWidget(ui->GnumberLe, 0, 1);
+    form->addWidget(new QLabel(QStringLiteral("姓名"), this), 1, 0);
+    form->addWidget(ui->GnameLe, 1, 1);
+    form->addWidget(new QLabel(QStringLiteral("部门"), this), 2, 0);
+    form->addWidget(ui->GpartmentLe, 2, 1);
+    form->setColumnStretch(1, 1);
+    layout->addLayout(form);
+
+    ui->GcameraBt->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    ui->GcameraBt->setToolTip(QStringLiteral("保存当前视频帧作为注册头像"));
+    ui->GregisterBt->setIcon(style()->standardIcon(QStyle::SP_DialogApplyButton));
+    ui->GregisterBt->setToolTip(QStringLiteral("保存人员信息和人脸特征"));
+    ui->GregisterBt->setObjectName(QStringLiteral("primaryAction"));
+    auto *actionRow = new QHBoxLayout;
+    actionRow->addWidget(ui->GcameraBt);
+    actionRow->addWidget(ui->GregisterBt);
+    layout->addLayout(actionRow);
+    layout->addStretch();
 }
 
 void QRegisterWidget::on_GcameraBt_clicked()
@@ -111,8 +168,20 @@ void QRegisterWidget::handlePhotoCaptureResult(bool success, const QString &mess
     m_photoCaptured = true;
     ui->GcameraBt->setEnabled(true);
     ui->GcameraBt->setText(QStringLiteral("已拍照，可注册"));
-    ui->GheadLb->setStyleSheet(QString("border:1px solid #123456; border-image: url(%1); border-radius:80px;")
-                               .arg(QUrl::fromLocalFile(m_photoPath).toString()));
+    updatePhotoPreview();
+}
+
+void QRegisterWidget::updatePhotoPreview()
+{
+    const QPixmap photo(m_photoPath);
+    if (photo.isNull()) {
+        ui->GheadLb->setPixmap(QPixmap());
+        ui->GheadLb->setText(QStringLiteral("照片不可用"));
+        return;
+    }
+
+    ui->GheadLb->setText(QString());
+    ui->GheadLb->setPixmap(Theme::circularAvatar(photo, ui->GheadLb->width()));
 }
 
 void QRegisterWidget::invalidateCapturedPhoto()
@@ -124,7 +193,8 @@ void QRegisterWidget::invalidateCapturedPhoto()
     m_photoCaptured = false;
     m_photoPath.clear();
     ui->GcameraBt->setText(QStringLiteral("拍照"));
-    ui->GheadLb->setStyleSheet(QStringLiteral("background-color: rgb(255, 255, 0);"));
+    ui->GheadLb->setPixmap(QPixmap());
+    ui->GheadLb->setText(QStringLiteral("待拍照"));
 }
 
 void QRegisterWidget::handleRegistrationResult(int faceid, quint64 requestId,

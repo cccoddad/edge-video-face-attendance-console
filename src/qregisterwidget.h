@@ -30,6 +30,8 @@ private slots:
     void on_GregisterBt_clicked();
 
 private:
+    void setupModernLayout();
+    void updatePhotoPreview();
     void invalidateCapturedPhoto();
     Ui::QRegisterWidget *ui;
     QFaceObject *mFaceObject;

@@ -24,6 +24,7 @@ private slots:
     void on_QtableCbb_currentIndexChanged(int index);
 
 private:
+    void setupModernLayout();
     AttendanceReportFilter attendanceFilter() const;
     void refreshAttendanceRecords();
     void updateTableMode();

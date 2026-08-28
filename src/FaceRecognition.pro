@@ -74,6 +74,7 @@ SOURCES += \
     qregisterwidget.cpp \
     rtspsource.cpp \
     snapshotstore.cpp \
+    theme.cpp \
     videofilesource.cpp
 
 HEADERS += \
@@ -89,6 +90,7 @@ HEADERS += \
     qregisterwidget.h \
     rtspsource.h \
     snapshotstore.h \
+    theme.h \
     videofilesource.h
 
 FORMS += \

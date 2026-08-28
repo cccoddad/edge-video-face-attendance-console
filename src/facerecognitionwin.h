@@ -29,6 +29,7 @@ private slots:
     void on_openVideoBt_clicked();
     void on_openLocalCameraBt_clicked();
     void on_stopVideoBt_clicked();
+    void on_modeTabs_currentChanged(int index);
 
 protected slots:
     void recvName(const QString &name);
@@ -41,12 +42,19 @@ signals:
     void sendTrackerCmd(const cv::Mat &faceMat, quint64 requestId);
     void registrationPhotoCaptured(bool success, const QString &message);
 private:
+    void setupModernLayout();
+    void showRecognitionPage();
+    void showRegisterPage();
+    void showQueryPage();
+    void clearSidePage();
     void openVideoFile(const QString &filePath);
     void openLocalCamera();
     void stopVideoSource();
     void updateVideoSourceStatus();
+    void updateMediaControls();
     void updateAttendanceStatus(const QString &message, bool failed = false);
     void showUnknownPerson();
+    void setRecognitionAvatar(const QString &photoPath);
     void captureRegistrationPhoto(const QString &photoPath);
     Ui::FaceRecognitionWin *ui;
     QWidget *win;
@@ -68,5 +76,9 @@ private:
     AttendanceRepository mAttendanceRepository;
     QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
     QString mVideoSourceType;
+    QTabWidget *mModeTabs;
+    QWidget *mRecognitionTab;
+    QWidget *mRegisterTab;
+    QWidget *mQueryTab;
 };
 #endif // FACERECOGNITIONWIN_H

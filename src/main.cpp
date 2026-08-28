@@ -2,6 +2,7 @@
 #include "appconfig.h"
 #include "attendancerepository.h"
 #include "snapshotstore.h"
+#include "theme.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -14,6 +15,7 @@
 int main(int argc, char *argv[])
 {
     QApplication application(argc, argv);
+    Theme::apply(&application);
     qRegisterMetaType<cv::Mat>("cv::Mat");
 
     QString modelError;

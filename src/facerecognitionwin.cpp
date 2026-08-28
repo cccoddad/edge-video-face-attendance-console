@@ -4,16 +4,24 @@
 #include "appconfig.h"
 #include "snapshotstore.h"
 #include "localcamerasource.h"
+#include "theme.h"
 #include "videofilesource.h"
 #include "ui_facerecognitionwin.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QFileDialog>
+#include <QFrame>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QPixmap>
 #include <QSqlError>
 #include <QSqlQuery>
-#include <QUrl>
+#include <QStyle>
+#include <QTabWidget>
+#include <QVBoxLayout>
 FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::FaceRecognitionWin),
@@ -28,15 +36,21 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mthread(new QThread(this)),
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
        mAttendanceRepository(QSqlDatabase::database()),
-       mVideoSourceType(QStringLiteral("video-file"))
+       mVideoSourceType(QStringLiteral("video-file")),
+       mModeTabs(nullptr),
+       mRecognitionTab(nullptr),
+       mRegisterTab(nullptr),
+       mQueryTab(nullptr)
 {
     ui->setupUi(this);
+    setupModernLayout();
     ui->videoLb->setAlignment(Qt::AlignCenter);
     ui->videoLb->setText(QStringLiteral("请选择本地视频文件"));
     ui->RnumberLb->setText(QStringLiteral("--"));
     ui->RnameLb->setText(QStringLiteral("未识别"));
     ui->RpartmentLb->setText(QStringLiteral("等待本地视频"));
     ui->RtimeLb->setText(QStringLiteral("--:--:--"));
+    setRecognitionAvatar(QString());
     updateVideoSourceStatus();
     updateAttendanceStatus(QStringLiteral("等待本地视频"));
     //初始化线程
@@ -52,6 +66,116 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     connect(&mfaceObject,&QFaceObject::sendQueryResult,this, &FaceRecognitionWin::recvQueryResult);
     connect(&mfaceObject, &QFaceObject::sendTrackerResult, this,
             &FaceRecognitionWin::recvTrackerResult);
+}
+
+void FaceRecognitionWin::setupModernLayout()
+{
+    setWindowTitle(QStringLiteral("人脸考勤控制台"));
+    setMinimumSize(1100, 640);
+    resize(1280, 720);
+
+    auto *centralLayout = new QHBoxLayout(ui->centralwidget);
+    centralLayout->setContentsMargins(20, 20, 20, 20);
+    centralLayout->setSpacing(18);
+
+    ui->videoWidget->setObjectName(QStringLiteral("mediaCard"));
+    ui->recognitionWidget->setObjectName(QStringLiteral("recognitionPage"));
+    ui->videoWidget->setStyleSheet(QString());
+    ui->recognitionWidget->setStyleSheet(QString());
+    ui->videoLb->setStyleSheet(QString());
+    ui->RheadLb->setStyleSheet(QString());
+    ui->recognitionRb->hide();
+    ui->registerRb->hide();
+    ui->queryRb->hide();
+
+    auto *videoLayout = new QVBoxLayout(ui->videoWidget);
+    videoLayout->setContentsMargins(20, 20, 20, 20);
+    videoLayout->setSpacing(12);
+    auto *mediaTitle = new QLabel(QStringLiteral("实时视频输入"), ui->videoWidget);
+    mediaTitle->setObjectName(QStringLiteral("pageTitle"));
+    videoLayout->addWidget(mediaTitle);
+    ui->videoLb->setObjectName(QStringLiteral("videoLb"));
+    ui->videoLb->setMinimumSize(560, 400);
+    ui->videoLb->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    videoLayout->addWidget(ui->videoLb, 1);
+    ui->videoStatusLb->setObjectName(QStringLiteral("videoStatusLb"));
+    videoLayout->addWidget(ui->videoStatusLb);
+
+    ui->openVideoBt->setText(QStringLiteral("视频文件"));
+    ui->openVideoBt->setIcon(style()->standardIcon(QStyle::SP_DialogOpenButton));
+    ui->openVideoBt->setToolTip(QStringLiteral("选择本地视频文件作为输入"));
+    ui->openLocalCameraBt->setText(QStringLiteral("本机摄像头"));
+    ui->openLocalCameraBt->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
+    ui->openLocalCameraBt->setToolTip(QStringLiteral("打开 Windows 本机摄像头进行独立开发测试"));
+    ui->stopVideoBt->setText(QStringLiteral("停止"));
+    ui->stopVideoBt->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
+    ui->stopVideoBt->setToolTip(QStringLiteral("停止当前视频输入并暂停识别"));
+    auto *mediaActions = new QHBoxLayout;
+    mediaActions->addWidget(ui->openVideoBt);
+    mediaActions->addWidget(ui->openLocalCameraBt);
+    mediaActions->addStretch();
+    mediaActions->addWidget(ui->stopVideoBt);
+    videoLayout->addLayout(mediaActions);
+
+    mModeTabs = new QTabWidget(ui->centralwidget);
+    mModeTabs->setDocumentMode(true);
+    mRecognitionTab = new QWidget(mModeTabs);
+    mRegisterTab = new QWidget(mModeTabs);
+    mQueryTab = new QWidget(mModeTabs);
+    auto *recognitionLayout = new QVBoxLayout(mRecognitionTab);
+    recognitionLayout->setContentsMargins(0, 12, 0, 0);
+    recognitionLayout->addWidget(ui->recognitionWidget);
+    mModeTabs->addTab(mRecognitionTab, QStringLiteral("识别"));
+    mModeTabs->addTab(mRegisterTab, QStringLiteral("注册"));
+    mModeTabs->addTab(mQueryTab, QStringLiteral("查询"));
+
+    auto *resultLayout = new QVBoxLayout(ui->recognitionWidget);
+    resultLayout->setContentsMargins(24, 24, 24, 24);
+    resultLayout->setSpacing(12);
+    ui->RtitleLb->setObjectName(QStringLiteral("pageTitle"));
+    ui->RtitleLb->setFont(font());
+    ui->RtitleLb->setText(QStringLiteral("识别结果"));
+    resultLayout->addWidget(ui->RtitleLb);
+    ui->RheadLb->setObjectName(QStringLiteral("avatar"));
+    ui->RheadLb->setFont(font());
+    ui->RheadLb->setFixedSize(128, 128);
+    ui->RheadLb->setAlignment(Qt::AlignCenter);
+    ui->RheadLb->style()->unpolish(ui->RheadLb);
+    ui->RheadLb->style()->polish(ui->RheadLb);
+    auto *avatarRow = new QHBoxLayout;
+    avatarRow->addStretch();
+    avatarRow->addWidget(ui->RheadLb);
+    avatarRow->addStretch();
+    resultLayout->addLayout(avatarRow);
+    ui->RnameLb->setObjectName(QStringLiteral("sectionTitle"));
+    ui->RnameLb->setFont(font());
+    ui->RnameLb->setAlignment(Qt::AlignCenter);
+    resultLayout->addWidget(ui->RnameLb);
+    auto *details = new QGridLayout;
+    details->setHorizontalSpacing(12);
+    details->setVerticalSpacing(8);
+    details->addWidget(new QLabel(QStringLiteral("员工编号"), ui->recognitionWidget), 0, 0);
+    details->addWidget(ui->RnumberLb, 0, 1);
+    details->addWidget(new QLabel(QStringLiteral("部门"), ui->recognitionWidget), 1, 0);
+    details->addWidget(ui->RpartmentLb, 1, 1);
+    details->addWidget(new QLabel(QStringLiteral("识别时间"), ui->recognitionWidget), 2, 0);
+    details->addWidget(ui->RtimeLb, 2, 1);
+    details->setColumnStretch(1, 1);
+    resultLayout->addLayout(details);
+    ui->RnumberLb->setWordWrap(true);
+    ui->RnumberLb->setFont(font());
+    ui->RpartmentLb->setWordWrap(true);
+    ui->RpartmentLb->setFont(font());
+    ui->RtimeLb->setWordWrap(true);
+    ui->RtimeLb->setFont(font());
+    ui->attendanceStatusLb->setObjectName(QStringLiteral("attendanceStatusLb"));
+    resultLayout->addWidget(ui->attendanceStatusLb);
+    resultLayout->addStretch();
+
+    centralLayout->addWidget(ui->videoWidget, 7);
+    centralLayout->addWidget(mModeTabs, 5);
+    connect(mModeTabs, &QTabWidget::currentChanged, this,
+            &FaceRecognitionWin::on_modeTabs_currentChanged);
 }
 
 //查询结果
@@ -87,11 +211,7 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     ui->RnumberLb->setText(number);
     ui->RnameLb->setText(query.value("name").toString());
     ui->RpartmentLb->setText(query.value("partment").toString());
-    const QString facepictrue = query.value("facepictrue").toString();
-    //显示图片
-    const QString sty = QString("border:1px solid #123456;border-radius:80px;border-image: url(%1);")
-                            .arg(QUrl::fromLocalFile(facepictrue).toString());
-    ui->RheadLb->setStyleSheet(sty);
+    setRecognitionAvatar(query.value("facepictrue").toString());
     const QDateTime now = QDateTime::currentDateTime();
     ui->RtimeLb->setText(now.toString("hh:mm:ss"));
 
@@ -179,6 +299,7 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
 FaceRecognitionWin::~FaceRecognitionWin()
 {
     stopVideoSource();
+    clearSidePage();
     mthread->quit();
     mthread->wait(3000);
     delete ui;
@@ -199,6 +320,17 @@ void FaceRecognitionWin::on_stopVideoBt_clicked()
 {
     stopVideoSource();
     updateVideoSourceStatus();
+}
+
+void FaceRecognitionWin::on_modeTabs_currentChanged(int index)
+{
+    if (index == 0) {
+        showRecognitionPage();
+    } else if (index == 1) {
+        showRegisterPage();
+    } else if (index == 2) {
+        showQueryPage();
+    }
 }
 
 void FaceRecognitionWin::on_openLocalCameraBt_clicked()
@@ -268,15 +400,16 @@ void FaceRecognitionWin::stopVideoSource()
 void FaceRecognitionWin::updateAttendanceStatus(const QString &message, bool failed)
 {
     ui->attendanceStatusLb->setText(QStringLiteral("考勤状态：%1").arg(message));
-    ui->attendanceStatusLb->setStyleSheet(failed
-                                          ? QStringLiteral("color: rgb(180, 30, 30);")
-                                          : QStringLiteral("color: rgb(30, 90, 30);"));
+    ui->attendanceStatusLb->setProperty("failed", failed);
+    ui->attendanceStatusLb->style()->unpolish(ui->attendanceStatusLb);
+    ui->attendanceStatusLb->style()->polish(ui->attendanceStatusLb);
 }
 
 void FaceRecognitionWin::updateVideoSourceStatus()
 {
     if (!mVideoSource) {
         ui->videoStatusLb->setText(QStringLiteral("视频状态：未初始化"));
+        updateMediaControls();
         return;
     }
 
@@ -287,6 +420,15 @@ void FaceRecognitionWin::updateVideoSourceStatus()
         status.append(QStringLiteral("：%1").arg(mVideoSource->displayName()));
     }
     ui->videoStatusLb->setText(status);
+    updateMediaControls();
+}
+
+void FaceRecognitionWin::updateMediaControls()
+{
+    const bool isPlaying = mVideoSource && mVideoSource->state() == VideoSourceState::Playing;
+    ui->openVideoBt->setEnabled(!isPlaying);
+    ui->openLocalCameraBt->setEnabled(!isPlaying);
+    ui->stopVideoBt->setEnabled(isPlaying);
 }
 
 void FaceRecognitionWin::showUnknownPerson()
@@ -295,54 +437,36 @@ void FaceRecognitionWin::showUnknownPerson()
     ui->RnameLb->setText("陌生人");
     ui->RpartmentLb->setText("未通过识别阈值");
     ui->RtimeLb->setText(QTime::currentTime().toString("hh:mm:ss"));
+    setRecognitionAvatar(QString());
+}
+
+void FaceRecognitionWin::setRecognitionAvatar(const QString &photoPath)
+{
+    const QPixmap photo(photoPath);
+    if (photo.isNull()) {
+        ui->RheadLb->setPixmap(QPixmap());
+        ui->RheadLb->setText(QStringLiteral("未识别"));
+        return;
+    }
+
+    ui->RheadLb->setText(QString());
+    ui->RheadLb->setPixmap(Theme::circularAvatar(photo, ui->RheadLb->width()));
 }
 
 void FaceRecognitionWin::on_recognitionRb_clicked()
 {
-    if(win==nullptr) //判断是否显示其他两个界面
-    {
-        return ; //说明当前显示的就是
-    }else
-    {
-        ui->recognitionWidget->show();//显示识别界面
-        if(win->inherits("QRegisterWidget"))
-        {
-            QRegisterWidget *twin = (QRegisterWidget*)this->win;
-            disconnect(twin, &QRegisterWidget::requestPhotoCapture,
-                       this, &FaceRecognitionWin::recvName);
-            disconnect(this, &FaceRecognitionWin::registrationPhotoCaptured,
-                       twin, &QRegisterWidget::handlePhotoCaptureResult);
-        }
-        delete win; //删除其他界面（注册，查询）
-        win = nullptr; //指向nullptr为了是后面判断
+    if (mModeTabs) {
+        mModeTabs->setCurrentIndex(0);
+        showRecognitionPage();
     }
 }
 
 void FaceRecognitionWin::on_registerRb_clicked()
 {
-    if(this->win != nullptr) //判断注册， 查询界面是否创建，如果创建就销毁
-    {
-        if(this->win->inherits("QRegisterWidget"))
-        {
-            QRegisterWidget *twin = (QRegisterWidget*)this->win;
-            disconnect(twin, &QRegisterWidget::requestPhotoCapture,
-                       this, &FaceRecognitionWin::recvName);
-            disconnect(this, &FaceRecognitionWin::registrationPhotoCaptured,
-                       twin, &QRegisterWidget::handlePhotoCaptureResult);
-        }
-        delete this->win;
-        this->win = nullptr;
+    if (mModeTabs) {
+        mModeTabs->setCurrentIndex(1);
+        showRegisterPage();
     }
-    QRegisterWidget *rwin = new  QRegisterWidget(this);//创建注册界面
-    rwin->setFaceObject(&mfaceObject);
-    connect(rwin, &QRegisterWidget::requestPhotoCapture,
-            this, &FaceRecognitionWin::recvName);
-    connect(this, &FaceRecognitionWin::registrationPhotoCaptured,
-            rwin, &QRegisterWidget::handlePhotoCaptureResult);
-    this->win = rwin;
-    rwin->setGeometry(ui->recognitionWidget->geometry());//设置显示位置
-    ui->recognitionWidget->hide();//隐藏识别界面
-    rwin->show();//显示注册界面
 }
 
 void FaceRecognitionWin::recvName(const QString &name)
@@ -386,21 +510,59 @@ void FaceRecognitionWin::recvTrackerResult(bool hasSingleFace, quint64 requestId
 
 void FaceRecognitionWin::on_queryRb_clicked()
 {
-    if(win != nullptr)//判断注册， 查询界面是否创建，如果创建就销毁
-    {
-        if(win->inherits("QRegisterWidget"))
-        {
-            QRegisterWidget *twin = (QRegisterWidget*)this->win;
-            disconnect(twin, &QRegisterWidget::requestPhotoCapture,
-                       this, &FaceRecognitionWin::recvName);
-            disconnect(this, &FaceRecognitionWin::registrationPhotoCaptured,
-                       twin, &QRegisterWidget::handlePhotoCaptureResult);
-        }
+    if (mModeTabs) {
+        mModeTabs->setCurrentIndex(2);
+        showQueryPage();
+    }
+}
+
+void FaceRecognitionWin::showRecognitionPage()
+{
+    clearSidePage();
+}
+
+void FaceRecognitionWin::showRegisterPage()
+{
+    if (win && win->inherits("QRegisterWidget")) {
+        return;
+    }
+
+    clearSidePage();
+    auto *layout = new QVBoxLayout(mRegisterTab);
+    layout->setContentsMargins(0, 12, 0, 0);
+    QRegisterWidget *registerWidget = new QRegisterWidget(mRegisterTab);
+    registerWidget->setFaceObject(&mfaceObject);
+    connect(registerWidget, &QRegisterWidget::requestPhotoCapture,
+            this, &FaceRecognitionWin::recvName);
+    connect(this, &FaceRecognitionWin::registrationPhotoCaptured,
+            registerWidget, &QRegisterWidget::handlePhotoCaptureResult);
+    layout->addWidget(registerWidget);
+    win = registerWidget;
+}
+
+void FaceRecognitionWin::showQueryPage()
+{
+    if (win && win->inherits("QqueryWidget")) {
+        return;
+    }
+
+    clearSidePage();
+    auto *layout = new QVBoxLayout(mQueryTab);
+    layout->setContentsMargins(0, 12, 0, 0);
+    win = new QqueryWidget(mQueryTab);
+    layout->addWidget(win);
+}
+
+void FaceRecognitionWin::clearSidePage()
+{
+    if (win) {
         delete win;
         win = nullptr;
     }
-    win = new  QqueryWidget(this);//创建查询界面
-    win->setGeometry(ui->recognitionWidget->geometry());//设置显示位置
-    ui->recognitionWidget->hide();//隐藏识别界面
-    win->show();//显示查询界面
+    if (mRegisterTab && mRegisterTab->layout()) {
+        delete mRegisterTab->layout();
+    }
+    if (mQueryTab && mQueryTab->layout()) {
+        delete mQueryTab->layout();
+    }
 }

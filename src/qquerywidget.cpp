@@ -1,15 +1,21 @@
 #include "qquerywidget.h"
 #include "appconfig.h"
 #include "attendancereport.h"
+#include "theme.h"
 #include "ui_qquerywidget.h"
 
 #include <QDate>
 #include <QDir>
 #include <QFileDialog>
+#include <QGridLayout>
+#include <QHeaderView>
+#include <QLabel>
 #include <QMessageBox>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QStyle>
+#include <QVBoxLayout>
 
 
 QqueryWidget::QqueryWidget(QWidget *parent) :
@@ -19,6 +25,7 @@ QqueryWidget::QqueryWidget(QWidget *parent) :
     attendanceModel(new QSqlQueryModel(this))
 {
     ui->setupUi(this);
+    setupModernLayout();
     //往下拉列表中添加数据
     ui->QtableCbb->addItem("员工数据");
     ui->QtableCbb->addItem("考勤数据");
@@ -44,6 +51,45 @@ void QqueryWidget::on_QqueryBt_clicked()
     } else {
         refreshAttendanceRecords();
     }
+}
+
+void QqueryWidget::setupModernLayout()
+{
+    setObjectName(QStringLiteral("QqueryWidget"));
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(14);
+
+    auto *title = new QLabel(QStringLiteral("人员与考勤查询"), this);
+    title->setObjectName(QStringLiteral("pageTitle"));
+    layout->addWidget(title);
+
+    auto *filters = new QGridLayout;
+    filters->setHorizontalSpacing(10);
+    filters->setVerticalSpacing(8);
+    filters->addWidget(new QLabel(QStringLiteral("数据类型"), this), 0, 0);
+    filters->addWidget(ui->QtableCbb, 0, 1);
+    filters->addWidget(ui->QqueryBt, 0, 2);
+    filters->addWidget(new QLabel(QStringLiteral("员工编号"), this), 1, 0);
+    filters->addWidget(ui->QnumberLe, 1, 1);
+    filters->addWidget(ui->QeventCbb, 1, 2);
+    filters->addWidget(new QLabel(QStringLiteral("开始日期"), this), 2, 0);
+    filters->addWidget(ui->QstartDateDe, 2, 1);
+    filters->addWidget(ui->QendDateDe, 2, 2);
+    filters->addWidget(ui->QexportBt, 3, 2);
+    filters->setColumnStretch(1, 1);
+    filters->setColumnStretch(2, 1);
+    layout->addLayout(filters);
+
+    ui->QqueryBt->setIcon(style()->standardIcon(QStyle::SP_FileDialogContentsView));
+    ui->QqueryBt->setToolTip(QStringLiteral("按当前条件刷新数据"));
+    ui->QqueryBt->setObjectName(QStringLiteral("primaryAction"));
+    ui->QexportBt->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    ui->QexportBt->setToolTip(QStringLiteral("导出当前筛选后的考勤 CSV"));
+    ui->QdataView->setAlternatingRowColors(true);
+    ui->QdataView->horizontalHeader()->setStretchLastSection(true);
+    ui->QdataView->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    layout->addWidget(ui->QdataView, 1);
 }
 
 void QqueryWidget::on_QexportBt_clicked()
