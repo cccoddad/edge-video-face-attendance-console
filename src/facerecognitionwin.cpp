@@ -16,6 +16,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QPainter>
 #include <QPixmap>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -41,6 +42,7 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mRecognitionTab(nullptr),
        mRegisterTab(nullptr),
        mQueryTab(nullptr)
+       , mCheckoutBt(nullptr)
 {
     ui->setupUi(this);
     setupModernLayout();
@@ -170,6 +172,13 @@ void FaceRecognitionWin::setupModernLayout()
     ui->RtimeLb->setFont(font());
     ui->attendanceStatusLb->setObjectName(QStringLiteral("attendanceStatusLb"));
     resultLayout->addWidget(ui->attendanceStatusLb);
+    mCheckoutBt = new QPushButton(QStringLiteral("签退（确认 3 秒）"), ui->recognitionWidget);
+    mCheckoutBt->setObjectName(QStringLiteral("primaryAction"));
+    mCheckoutBt->setIcon(style()->standardIcon(QStyle::SP_DialogApplyButton));
+    mCheckoutBt->setToolTip(QStringLiteral("对当前已识别人员发起连续 3 秒正脸签退确认"));
+    resultLayout->addWidget(mCheckoutBt);
+    connect(mCheckoutBt, &QPushButton::clicked, this,
+            &FaceRecognitionWin::on_requestCheckout_clicked);
     resultLayout->addStretch();
 
     centralLayout->addWidget(ui->videoWidget, 7);
@@ -189,6 +198,7 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     qDebug()<<index<<similarty;
     if(index < 0 || similarty < AppConfig::recognitionThreshold()) {
         mAttendanceStateMachine.reset();
+        resetCheckoutConfirmation(QStringLiteral("签退确认已中断：未通过识别"));
         updateAttendanceStatus(QStringLiteral("未通过识别阈值"));
         showUnknownPerson();
         return;
@@ -201,6 +211,7 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     if (!query.exec() || !query.next()) {
         qWarning() << "employee lookup failed:" << query.lastError().text();
         mAttendanceStateMachine.reset();
+        resetCheckoutConfirmation(QStringLiteral("签退确认已中断：查询人员信息失败"));
         updateAttendanceStatus(QStringLiteral("查询人员信息失败"), true);
         showUnknownPerson();
         return;
@@ -208,12 +219,39 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     //查询到用户
     //获取，工号number，name，partment，facepictrue，显示界面上
     const QString number = query.value("number").toString();
+    const QString name = query.value("name").toString();
     ui->RnumberLb->setText(number);
-    ui->RnameLb->setText(query.value("name").toString());
+    ui->RnameLb->setText(name);
     ui->RpartmentLb->setText(query.value("partment").toString());
     setRecognitionAvatar(query.value("facepictrue").toString());
     const QDateTime now = QDateTime::currentDateTime();
     ui->RtimeLb->setText(now.toString("hh:mm:ss"));
+    mLastRecognizedNumber = number;
+    mTrackedFaceLabel = QStringLiteral("%1  %2").arg(name, number);
+    updateMediaControls();
+
+    if (mCheckoutConfirmation.isActive()) {
+        if (mCheckoutConfirmation.number() != number) {
+            resetCheckoutConfirmation(QStringLiteral("签退确认已中断：人员不一致"));
+            return;
+        }
+        if (!mCheckoutConfirmation.observe(number, now)) {
+            const int elapsed = mCheckoutConfirmation.elapsedMilliseconds(now);
+            const int seconds = qMin(3, qMax(1, (elapsed + 999) / 1000));
+            updateAttendanceStatus(QStringLiteral("签退确认中：%1/3 秒").arg(seconds));
+            return;
+        }
+
+        AttendanceConfirmation checkoutConfirmation;
+        checkoutConfirmation.number = number;
+        checkoutConfirmation.similarity = similarty;
+        checkoutConfirmation.timestamp = now;
+        const AttendanceWriteResult checkoutResult = mAttendanceRepository.recordCheckOut(
+                    checkoutConfirmation, mVideoSourceType);
+        resetCheckoutConfirmation();
+        finishAttendanceWrite(checkoutResult, checkoutConfirmation);
+        return;
+    }
 
     AttendanceConfirmation confirmation;
     if (!mAttendanceStateMachine.observe(number, similarty, now, &confirmation)) {
@@ -232,17 +270,23 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
 
     const AttendanceWriteResult writeResult = mAttendanceRepository.record(
                 confirmation, AppConfig::minimumCheckoutIntervalSeconds(), mVideoSourceType);
+    finishAttendanceWrite(writeResult, confirmation);
+}
+
+void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writeResult,
+                                               const AttendanceConfirmation &confirmation)
+{
     if (writeResult.status == AttendanceWriteStatus::Failed) {
         qWarning() << "attendance write failed:" << writeResult.message;
         updateAttendanceStatus(writeResult.message, true);
         return;
     }
-    mLastAttendanceConfirmationByNumber.insert(number, now);
+    mLastAttendanceConfirmationByNumber.insert(confirmation.number, confirmation.timestamp);
     QString statusMessage = writeResult.message;
     if (writeResult.status == AttendanceWriteStatus::Inserted) {
         QString snapshotPath;
         QString snapshotError;
-        if (!SnapshotStore::save(mPendingRecognitionFrame, number, confirmation.timestamp,
+        if (!SnapshotStore::save(mPendingRecognitionFrame, confirmation.number, confirmation.timestamp,
                                  writeResult.eventKey, &snapshotPath, &snapshotError)) {
             qWarning() << "attendance snapshot failed:" << snapshotError;
             statusMessage.append(QStringLiteral("；抓拍保存失败"));
@@ -271,7 +315,10 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         mTrackerRequestPending = false;
         ++mTrackerRequestId;
         mPendingTrackerFrame.release();
+        mTrackedFaceRect = QRect();
+        mTrackedFaceLabel.clear();
         mAttendanceStateMachine.reset();
+        resetCheckoutConfirmation();
         updateAttendanceStatus(QStringLiteral("视频输入已停止"));
         return;
     }
@@ -283,11 +330,16 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         //把Mat数据转QImage
         QImage image(rgbImage.data,rgbImage.cols,rgbImage.rows,rgbImage.step,QImage::Format_RGB888);
         //在Qt中显示
-        ui->videoLb->setPixmap(QPixmap::fromImage(image).scaled(ui->videoLb->size(),
-                                                                  Qt::KeepAspectRatio,
-                                                                  Qt::SmoothTransformation));
+        QPixmap displayPixmap = QPixmap::fromImage(image).scaled(ui->videoLb->size(),
+                                                                   Qt::KeepAspectRatio,
+                                                                   Qt::FastTransformation);
+        updateFaceOverlay(&displayPixmap, image.size());
+        ui->videoLb->setPixmap(displayPixmap);
 
-        if (!mTrackerRequestPending && !mRecognitionRequestPending) {
+        const bool recognitionIntervalElapsed = !mRecognitionDispatchTimer.isValid()
+                || mRecognitionDispatchTimer.elapsed() >= AppConfig::recognitionIntervalMilliseconds();
+        if (recognitionIntervalElapsed && !mTrackerRequestPending && !mRecognitionRequestPending) {
+            mRecognitionDispatchTimer.restart();
             mTrackerRequestPending = true;
             ++mTrackerRequestId;
             mPendingTrackerFrame = videoImage.clone();
@@ -355,7 +407,7 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
     }
 
     mRecognitionInputActive = true;
-    timerid = startTimer(33);
+    timerid = startTimer(40);
     updateVideoSourceStatus();
 }
 
@@ -374,7 +426,7 @@ void FaceRecognitionWin::openLocalCamera()
     }
 
     mRecognitionInputActive = true;
-    timerid = startTimer(33);
+    timerid = startTimer(40);
     updateVideoSourceStatus();
 }
 
@@ -387,7 +439,11 @@ void FaceRecognitionWin::stopVideoSource()
     mTrackerRequestPending = false;
     ++mTrackerRequestId;
     mPendingTrackerFrame.release();
+    mTrackedFaceRect = QRect();
+    mTrackedFaceLabel.clear();
     mAttendanceStateMachine.reset();
+    mLastRecognizedNumber.clear();
+    resetCheckoutConfirmation();
     if (timerid != 0) {
         killTimer(timerid);
         timerid = 0;
@@ -429,6 +485,74 @@ void FaceRecognitionWin::updateMediaControls()
     ui->openVideoBt->setEnabled(!isPlaying);
     ui->openLocalCameraBt->setEnabled(!isPlaying);
     ui->stopVideoBt->setEnabled(isPlaying);
+    if (mCheckoutBt) {
+        mCheckoutBt->setEnabled(isPlaying && !mLastRecognizedNumber.isEmpty()
+                                && !mCheckoutConfirmation.isActive());
+    }
+}
+
+void FaceRecognitionWin::updateFaceOverlay(QPixmap *pixmap, const QSize &sourceSize) const
+{
+    if (!pixmap || pixmap->isNull() || mTrackedFaceRect.isEmpty() || sourceSize.isEmpty()) {
+        return;
+    }
+
+    const qreal scale = qMin(static_cast<qreal>(pixmap->width()) / sourceSize.width(),
+                             static_cast<qreal>(pixmap->height()) / sourceSize.height());
+    const qreal offsetX = (pixmap->width() - sourceSize.width() * scale) / 2.0;
+    const qreal offsetY = (pixmap->height() - sourceSize.height() * scale) / 2.0;
+    QRect faceRect(qRound(offsetX + mTrackedFaceRect.x() * scale),
+                   qRound(offsetY + mTrackedFaceRect.y() * scale),
+                   qRound(mTrackedFaceRect.width() * scale),
+                   qRound(mTrackedFaceRect.height() * scale));
+    faceRect = faceRect.intersected(pixmap->rect());
+    if (faceRect.isEmpty()) {
+        return;
+    }
+
+    const QString label = mTrackedFaceLabel.isEmpty()
+            ? QStringLiteral("正在识别") : mTrackedFaceLabel;
+    QPainter painter(pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QColor boxColor(QStringLiteral("#7ee6a2"));
+    painter.setPen(QPen(boxColor, 3));
+    painter.drawRect(faceRect);
+    QFont labelFont = painter.font();
+    labelFont.setPointSize(qMax(9, labelFont.pointSize()));
+    painter.setFont(labelFont);
+    const QFontMetrics metrics(labelFont);
+    const QRect textRect = metrics.boundingRect(label).adjusted(-8, -4, 8, 4);
+    QRect labelRect(faceRect.left(), faceRect.top() - textRect.height(), textRect.width(), textRect.height());
+    if (labelRect.top() < 0) {
+        labelRect.moveTop(faceRect.top());
+    }
+    if (labelRect.right() > pixmap->width()) {
+        labelRect.moveRight(pixmap->width());
+    }
+    painter.fillRect(labelRect, boxColor);
+    painter.setPen(QColor(QStringLiteral("#173b29")));
+    painter.drawText(labelRect, Qt::AlignCenter, label);
+}
+
+void FaceRecognitionWin::on_requestCheckout_clicked()
+{
+    if (!mRecognitionInputActive || mLastRecognizedNumber.isEmpty()) {
+        updateAttendanceStatus(QStringLiteral("请先保持一名已登记人员在画面中"), true);
+        return;
+    }
+    mCheckoutConfirmation.start(mLastRecognizedNumber, QDateTime::currentDateTime());
+    updateAttendanceStatus(QStringLiteral("签退确认已开始，请保持正脸 3 秒"));
+    updateMediaControls();
+}
+
+void FaceRecognitionWin::resetCheckoutConfirmation(const QString &message)
+{
+    const bool wasActive = mCheckoutConfirmation.isActive();
+    mCheckoutConfirmation.reset();
+    if (wasActive && !message.isEmpty()) {
+        updateAttendanceStatus(message);
+    }
+    updateMediaControls();
 }
 
 void FaceRecognitionWin::showUnknownPerson()
@@ -437,6 +561,9 @@ void FaceRecognitionWin::showUnknownPerson()
     ui->RnameLb->setText("陌生人");
     ui->RpartmentLb->setText("未通过识别阈值");
     ui->RtimeLb->setText(QTime::currentTime().toString("hh:mm:ss"));
+    mLastRecognizedNumber.clear();
+    mTrackedFaceLabel.clear();
+    updateMediaControls();
     setRecognitionAvatar(QString());
 }
 
@@ -487,16 +614,23 @@ void FaceRecognitionWin::captureRegistrationPhoto(const QString &photoPath)
     emit registrationPhotoCaptured(true, QStringLiteral("拍照成功"));
 }
 
-void FaceRecognitionWin::recvTrackerResult(bool hasSingleFace, quint64 requestId)
+void FaceRecognitionWin::recvTrackerResult(bool hasSingleFace, const QRect &faceRect, quint64 requestId)
 {
     if (!mRecognitionInputActive || requestId != mTrackerRequestId) {
         return;
     }
     mTrackerRequestPending = false;
     if (!hasSingleFace) {
+        mTrackedFaceRect = QRect();
+        mTrackedFaceLabel.clear();
         mAttendanceStateMachine.reset();
+        resetCheckoutConfirmation(QStringLiteral("签退确认已中断：请保持单人正脸"));
         updateAttendanceStatus(QStringLiteral("等待单人正脸"));
         return;
+    }
+    mTrackedFaceRect = faceRect;
+    if (mTrackedFaceLabel.isEmpty()) {
+        mTrackedFaceLabel = QStringLiteral("正在识别");
     }
     if (mRecognitionRequestPending || mPendingTrackerFrame.empty()) {
         return;

@@ -15,6 +15,7 @@ public:
     static QString modelPath(const QString &fileName);
     static float recognitionThreshold();
     static int recognitionConfirmationFrames();
+    static int recognitionIntervalMilliseconds();
     static int attendanceCooldownSeconds();
     static int minimumCheckoutIntervalSeconds();
     static int snapshotRetentionDays();

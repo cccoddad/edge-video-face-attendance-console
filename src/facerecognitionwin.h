@@ -4,15 +4,19 @@
 #include <QMainWindow>
 #include <QThread>
 #include <QHash>
+#include <QElapsedTimer>
+#include <QRect>
 #include <memory>
 #include "attendancerepository.h"
 #include "attendancestatemachine.h"
+#include "checkoutconfirmation.h"
 #include "ivideosource.h"
 #include "qfaceobject.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class FaceRecognitionWin; }
 QT_END_NAMESPACE
+class QPushButton;
 
 class FaceRecognitionWin : public QMainWindow
 {
@@ -30,10 +34,11 @@ private slots:
     void on_openLocalCameraBt_clicked();
     void on_stopVideoBt_clicked();
     void on_modeTabs_currentChanged(int index);
+    void on_requestCheckout_clicked();
 
 protected slots:
     void recvName(const QString &name);
-    void recvTrackerResult(bool hasSingleFace, quint64 requestId);
+    void recvTrackerResult(bool hasSingleFace, const QRect &faceRect, quint64 requestId);
     //接收查询结果
     void recvQueryResult(int index, float similarty, quint64 requestId);
 signals:
@@ -53,6 +58,10 @@ private:
     void updateVideoSourceStatus();
     void updateMediaControls();
     void updateAttendanceStatus(const QString &message, bool failed = false);
+    void updateFaceOverlay(QPixmap *pixmap, const QSize &sourceSize) const;
+    void finishAttendanceWrite(const AttendanceWriteResult &writeResult,
+                               const AttendanceConfirmation &confirmation);
+    void resetCheckoutConfirmation(const QString &message = QString());
     void showUnknownPerson();
     void setRecognitionAvatar(const QString &photoPath);
     void captureRegistrationPhoto(const QString &photoPath);
@@ -68,17 +77,23 @@ private:
     bool mTrackerRequestPending;
     quint64 mTrackerRequestId;
     cv::Mat mPendingTrackerFrame;
+    QRect mTrackedFaceRect;
+    QString mTrackedFaceLabel;
+    QElapsedTimer mRecognitionDispatchTimer;
     //定义一个人脸识别对象
     QFaceObject mfaceObject;
     //定义一个线程用来识别
     QThread *mthread;
     AttendanceStateMachine mAttendanceStateMachine;
+    CheckoutConfirmation mCheckoutConfirmation;
     AttendanceRepository mAttendanceRepository;
     QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
+    QString mLastRecognizedNumber;
     QString mVideoSourceType;
     QTabWidget *mModeTabs;
     QWidget *mRecognitionTab;
     QWidget *mRegisterTab;
     QWidget *mQueryTab;
+    QPushButton *mCheckoutBt;
 };
 #endif // FACERECOGNITIONWIN_H

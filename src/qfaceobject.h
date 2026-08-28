@@ -2,6 +2,7 @@
 #define QFACEOBJECT_H
 
 #include <QObject>
+#include <QRect>
 #include <FaceEngine.h>
 #include <FaceTracker.h>
 #include <FaceRecognizer.h>
@@ -36,7 +37,7 @@ signals:
     //当查询到人脸的时候把人脸id和相似度发送出来
     void sendQueryResult(int index, float similarity, quint64 requestId);
     void sendRegistrationResult(int faceid, quint64 requestId, const QString &errorMessage);
-    void sendTrackerResult(bool hasSingleFace, quint64 requestId);
+    void sendTrackerResult(bool hasSingleFace, const QRect &faceRect, quint64 requestId);
 protected:
     FaceEngine  *mfaceEngine;
     FaceTracker *mfaceTracker;

@@ -8,8 +8,10 @@ CONFIG -= app_bundle
 SOURCES += \
     ../src/attendancerepository.cpp \
     ../src/attendancestatemachine.cpp \
+    ../src/checkoutconfirmation.cpp \
     attendancestatemachine_test.cpp
 
 HEADERS += \
     ../src/attendancerepository.h \
-    ../src/attendancestatemachine.h
+    ../src/attendancestatemachine.h \
+    ../src/checkoutconfirmation.h

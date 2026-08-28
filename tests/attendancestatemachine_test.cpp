@@ -1,5 +1,6 @@
 #include "../src/attendancerepository.h"
 #include "../src/attendancestatemachine.h"
+#include "../src/checkoutconfirmation.h"
 
 #include <QCoreApplication>
 #include <QSqlError>
@@ -84,6 +85,44 @@ int main(int argc, char *argv[])
         return 8;
     }
 
+    CheckoutConfirmation checkoutConfirmation;
+    const QDateTime checkoutStartedAt = checkInTime.addSecs(5 * 60 * 60 + 10);
+    checkoutConfirmation.start("E002", checkoutStartedAt);
+    if (checkoutConfirmation.observe("E002", checkoutStartedAt.addMSecs(2999))
+            || !checkoutConfirmation.observe("E002", checkoutStartedAt.addMSecs(3000))) {
+        std::fprintf(stderr, "Three-second checkout confirmation failed\n");
+        return 16;
+    }
+    checkoutConfirmation.start("E002", checkoutStartedAt);
+    if (checkoutConfirmation.observe("E003", checkoutStartedAt.addMSecs(3000))
+            || checkoutConfirmation.isActive()) {
+        std::fprintf(stderr, "Checkout confirmation did not reset on person change\n");
+        return 17;
+    }
+
+    AttendanceConfirmation manualCheckout;
+    manualCheckout.number = "E002";
+    manualCheckout.similarity = 0.95f;
+    manualCheckout.timestamp = checkoutStartedAt;
+    result = repository.recordCheckOut(manualCheckout, "local-camera");
+    if (result.status != AttendanceWriteStatus::Suppressed) {
+        std::fprintf(stderr, "Check-out without check-in was not suppressed\n");
+        return 18;
+    }
+    result = repository.record(manualCheckout, 4 * 60 * 60, "local-camera");
+    if (result.status != AttendanceWriteStatus::Inserted
+            || result.eventType != AttendanceEventType::CheckIn) {
+        std::fprintf(stderr, "Manual checkout test setup failed\n");
+        return 19;
+    }
+    manualCheckout.timestamp = checkoutStartedAt.addSecs(3);
+    result = repository.recordCheckOut(manualCheckout, "local-camera");
+    if (result.status != AttendanceWriteStatus::Inserted
+            || result.eventType != AttendanceEventType::CheckOut) {
+        std::fprintf(stderr, "Confirmed manual check-out write failed\n");
+        return 20;
+    }
+
     machine.reset();
     if (!confirm(&machine, "E001", checkInTime.addSecs(4 * 60 * 60), &confirmation)) {
         std::fprintf(stderr, "Check-out confirmation setup failed\n");
@@ -109,12 +148,12 @@ int main(int argc, char *argv[])
 
     QSqlQuery countQuery(database);
     if (!countQuery.exec("SELECT COUNT(*) FROM recorduser") || !countQuery.next()
-            || countQuery.value(0).toInt() != 2) {
+            || countQuery.value(0).toInt() != 4) {
         std::fprintf(stderr, "Unexpected attendance row count\n");
         return 13;
     }
 
-    std::fprintf(stdout, "Attendance state machine test passed: check-in, check-out and idempotency verified\n");
+    std::fprintf(stdout, "Attendance state machine test passed: confirmation, check-in, check-out and idempotency verified\n");
     database.close();
     QSqlDatabase::removeDatabase("attendance-state-test");
     return 0;

@@ -163,6 +163,44 @@ AttendanceWriteResult AttendanceRepository::record(const AttendanceConfirmation 
     return result;
 }
 
+AttendanceWriteResult AttendanceRepository::recordCheckOut(const AttendanceConfirmation &confirmation,
+                                                            const QString &sourceType)
+{
+    AttendanceWriteResult result;
+    if (!m_database.isOpen() || confirmation.number.isEmpty() || !confirmation.timestamp.isValid()) {
+        result.message = QStringLiteral("签退写入参数或数据库状态无效");
+        return result;
+    }
+
+    const QDate date = confirmation.timestamp.date();
+    const QDateTime dayStart(date, QTime(0, 0));
+    const QDateTime dayEnd = dayStart.addDays(1);
+    QSqlQuery previousQuery(m_database);
+    previousQuery.prepare("SELECT event_type FROM recorduser "
+                          "WHERE number = ? AND checktime >= ? AND checktime < ? "
+                          "AND event_type IS NOT NULL ORDER BY checktime DESC, id DESC LIMIT 1");
+    previousQuery.addBindValue(confirmation.number);
+    previousQuery.addBindValue(dayStart.toString("yyyy-MM-dd hh:mm:ss"));
+    previousQuery.addBindValue(dayEnd.toString("yyyy-MM-dd hh:mm:ss"));
+    if (!previousQuery.exec()) {
+        result.message = QStringLiteral("查询当天考勤状态失败：%1").arg(previousQuery.lastError().text());
+        return result;
+    }
+    if (!previousQuery.next()) {
+        result.status = AttendanceWriteStatus::Suppressed;
+        result.message = QStringLiteral("今日尚未签到，不能签退");
+        return result;
+    }
+    if (previousQuery.value(0).toString() == eventTypeText(AttendanceEventType::CheckOut)) {
+        result.status = AttendanceWriteStatus::Suppressed;
+        result.eventType = AttendanceEventType::CheckOut;
+        result.message = QStringLiteral("今日已完成签退");
+        return result;
+    }
+
+    return record(confirmation, 0, sourceType);
+}
+
 bool AttendanceRepository::updateSnapshotPath(const QString &eventKey, const QString &snapshotPath,
                                               QString *errorMessage)
 {

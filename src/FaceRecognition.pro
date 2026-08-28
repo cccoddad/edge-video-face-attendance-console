@@ -65,6 +65,7 @@ SOURCES += \
     attendancereport.cpp \
     attendancerepository.cpp \
     attendancestatemachine.cpp \
+    checkoutconfirmation.cpp \
     ivideosource.cpp \
     localcamerasource.cpp \
     main.cpp \
@@ -82,6 +83,7 @@ HEADERS += \
     attendancereport.h \
     attendancerepository.h \
     attendancestatemachine.h \
+    checkoutconfirmation.h \
     ivideosource.h \
     localcamerasource.h \
     facerecognitionwin.h \

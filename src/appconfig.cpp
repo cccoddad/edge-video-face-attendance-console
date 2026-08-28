@@ -70,6 +70,13 @@ int AppConfig::recognitionConfirmationFrames()
     return ok && value >= 1 && value <= 10 ? value : 3;
 }
 
+int AppConfig::recognitionIntervalMilliseconds()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_RECOGNITION_INTERVAL_MS").toInt(&ok);
+    return ok && value >= 100 && value <= 1000 ? value : 200;
+}
+
 int AppConfig::attendanceCooldownSeconds()
 {
     bool ok = false;

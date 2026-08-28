@@ -35,6 +35,8 @@ public:
     AttendanceWriteResult record(const AttendanceConfirmation &confirmation,
                                  int minimumCheckoutIntervalSeconds,
                                  const QString &sourceType);
+    AttendanceWriteResult recordCheckOut(const AttendanceConfirmation &confirmation,
+                                         const QString &sourceType);
     bool updateSnapshotPath(const QString &eventKey, const QString &snapshotPath,
                             QString *errorMessage = nullptr);
 

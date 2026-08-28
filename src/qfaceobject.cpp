@@ -107,7 +107,7 @@ void QFaceObject::deleteface(int faceid)
 void QFaceObject::trackerface(const cv::Mat &faceMat, quint64 requestId)
 {
     if (faceMat.empty()) {
-        emit sendTrackerResult(false, requestId);
+        emit sendTrackerResult(false, QRect(), requestId);
         return;
     }
     SeetaImageData seetaData ;
@@ -116,5 +116,10 @@ void QFaceObject::trackerface(const cv::Mat &faceMat, quint64 requestId)
     seetaData.height = faceMat.rows;
     seetaData.channels = faceMat.channels();
     SeetaTrackingFaceInfoArray faceArray = mfaceTracker->track(seetaData);//跟踪,返回人脸数据
-    emit sendTrackerResult(faceArray.size == 1, requestId);
+    QRect faceRect;
+    if (faceArray.size == 1) {
+        const SeetaRect &position = faceArray.data[0].pos;
+        faceRect = QRect(position.x, position.y, position.width, position.height);
+    }
+    emit sendTrackerResult(faceArray.size == 1, faceRect, requestId);
 }
