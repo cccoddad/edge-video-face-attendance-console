@@ -3,6 +3,7 @@
 #include "qregisterwidget.h"
 #include "appconfig.h"
 #include "snapshotstore.h"
+#include "localcamerasource.h"
 #include "videofilesource.h"
 #include "ui_facerecognitionwin.h"
 #include <QDateTime>
@@ -26,7 +27,8 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mTrackerRequestId(0),
        mthread(new QThread(this)),
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
-       mAttendanceRepository(QSqlDatabase::database())
+       mAttendanceRepository(QSqlDatabase::database()),
+       mVideoSourceType(QStringLiteral("video-file"))
 {
     ui->setupUi(this);
     ui->videoLb->setAlignment(Qt::AlignCenter);
@@ -109,7 +111,7 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     }
 
     const AttendanceWriteResult writeResult = mAttendanceRepository.record(
-                confirmation, AppConfig::minimumCheckoutIntervalSeconds(), QStringLiteral("video-file"));
+                confirmation, AppConfig::minimumCheckoutIntervalSeconds(), mVideoSourceType);
     if (writeResult.status == AttendanceWriteStatus::Failed) {
         qWarning() << "attendance write failed:" << writeResult.message;
         updateAttendanceStatus(writeResult.message, true);
@@ -199,19 +201,43 @@ void FaceRecognitionWin::on_stopVideoBt_clicked()
     updateVideoSourceStatus();
 }
 
+void FaceRecognitionWin::on_openLocalCameraBt_clicked()
+{
+    openLocalCamera();
+}
+
 void FaceRecognitionWin::openVideoFile(const QString &filePath)
 {
     stopVideoSource();
 
-    VideoFileSource *videoFileSource = dynamic_cast<VideoFileSource *>(mVideoSource.get());
-    if (videoFileSource) {
-        videoFileSource->setLoopEnabled(AppConfig::localVideoLoopEnabled());
-    }
+    std::unique_ptr<VideoFileSource> videoFileSource(new VideoFileSource);
+    videoFileSource->setLoopEnabled(AppConfig::localVideoLoopEnabled());
+    mVideoSource = std::move(videoFileSource);
+    mVideoSourceType = QStringLiteral("video-file");
 
     QString errorMessage;
     if (!mVideoSource->open(filePath, &errorMessage)) {
         updateVideoSourceStatus();
         QMessageBox::warning(this, QStringLiteral("打开视频失败"), errorMessage);
+        return;
+    }
+
+    mRecognitionInputActive = true;
+    timerid = startTimer(33);
+    updateVideoSourceStatus();
+}
+
+void FaceRecognitionWin::openLocalCamera()
+{
+    stopVideoSource();
+
+    mVideoSource.reset(new LocalCameraSource);
+    mVideoSourceType = QStringLiteral("local-camera");
+    const QString cameraIndex = QString::number(AppConfig::localCameraIndex());
+    QString errorMessage;
+    if (!mVideoSource->open(cameraIndex, &errorMessage)) {
+        updateVideoSourceStatus();
+        QMessageBox::warning(this, QStringLiteral("打开本机摄像头失败"), errorMessage);
         return;
     }
 

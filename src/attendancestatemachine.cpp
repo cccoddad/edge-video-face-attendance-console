@@ -47,7 +47,7 @@ void AttendanceStateMachine::reset()
 
 int AttendanceStateMachine::consecutiveFrames() const
 {
-    return m_consecutiveFrames;
+    return qMin(m_consecutiveFrames, m_requiredFrames);
 }
 
 int AttendanceStateMachine::requiredFrames() const

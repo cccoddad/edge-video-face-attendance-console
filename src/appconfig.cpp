@@ -109,6 +109,13 @@ bool AppConfig::localVideoLoopEnabled()
     return value == QStringLiteral("1") || value.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
 }
 
+int AppConfig::localCameraIndex()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_LOCAL_CAMERA_INDEX").toInt(&ok);
+    return ok && value >= 0 && value <= 15 ? value : 0;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

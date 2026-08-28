@@ -21,6 +21,7 @@ public:
     static QString rtspUrl();
     static int rtspReconnectIntervalMilliseconds();
     static bool localVideoLoopEnabled();
+    static int localCameraIndex();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

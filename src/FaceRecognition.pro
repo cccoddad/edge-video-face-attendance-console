@@ -66,6 +66,7 @@ SOURCES += \
     attendancerepository.cpp \
     attendancestatemachine.cpp \
     ivideosource.cpp \
+    localcamerasource.cpp \
     main.cpp \
     facerecognitionwin.cpp \
     qfaceobject.cpp \
@@ -81,6 +82,7 @@ HEADERS += \
     attendancerepository.h \
     attendancestatemachine.h \
     ivideosource.h \
+    localcamerasource.h \
     facerecognitionwin.h \
     qfaceobject.h \
     qquerywidget.h \

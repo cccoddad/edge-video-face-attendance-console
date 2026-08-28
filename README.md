@@ -9,7 +9,7 @@
 - 可配置的模型目录、应用数据目录、相似度阈值和考勤冷却时间。
 - SQLite 参数化写入与事务基础，避免连续帧重复考勤。
 - 连续帧确认、当天签到/签退状态与数据库幂等键，包含按人员的识别冷却。
-- `IVideoSource` 与 `VideoFileSource` 本地视频输入；可从 Qt 界面选择视频文件进行回归测试。
+- `IVideoSource`、`VideoFileSource` 与 `LocalCameraSource` 本地媒体输入；可从 Qt 界面选择视频文件或打开 Windows 本机摄像头进行独立开发测试。
 - 考勤记录按工号、日期和签到/签退状态筛选，并将当前筛选结果导出为 UTF-8 CSV。
 - 签到或签退确认后保存 Windows 本地 JPEG 抓拍，并按可配置保留期清理过期图片。
 - Windows 独立打包脚本，包含 Qt、OpenCV、SeetaFace、SQLite 驱动和模型依赖。
@@ -23,7 +23,7 @@
 ## 技术边界
 
 - 人脸检测、特征匹配和考勤决策只在 Windows PC 端运行。
-- 摄像头、麦克风、媒体编码和板端 RKNN 推理由 RK3568 网关独占。
+- RK3568 上连接的摄像头、麦克风、媒体编码和板端 RKNN 推理由网关独占；Windows 本机摄像头仅用于本项目独立开发，不参与网关联调。
 - Qt 客户端未来仅主动读取可配置 RTSP 地址，预期接口为 `rtsp://<rk3568-ip>:8554/live`；不在 Windows 上启动 RTSP 服务端或监听 8554 端口。
 - SQLite、模型、抓拍、报表和日志保存在 Windows 本地应用数据目录，不与网关共享。抓拍默认保留 30 天，可通过 `FACE_ATTENDANCE_SNAPSHOT_RETENTION_DAYS` 配置为 1 至 3650 天。
 

@@ -27,6 +27,7 @@ private slots:
     void on_registerRb_clicked();
     void on_queryRb_clicked();
     void on_openVideoBt_clicked();
+    void on_openLocalCameraBt_clicked();
     void on_stopVideoBt_clicked();
 
 protected slots:
@@ -41,6 +42,7 @@ signals:
     void registrationPhotoCaptured(bool success, const QString &message);
 private:
     void openVideoFile(const QString &filePath);
+    void openLocalCamera();
     void stopVideoSource();
     void updateVideoSourceStatus();
     void updateAttendanceStatus(const QString &message, bool failed = false);
@@ -65,5 +67,6 @@ private:
     AttendanceStateMachine mAttendanceStateMachine;
     AttendanceRepository mAttendanceRepository;
     QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
+    QString mVideoSourceType;
 };
 #endif // FACERECOGNITIONWIN_H
