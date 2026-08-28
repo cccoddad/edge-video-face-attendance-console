@@ -71,6 +71,7 @@ SOURCES += \
     qfaceobject.cpp \
     qquerywidget.cpp \
     qregisterwidget.cpp \
+    rtspsource.cpp \
     snapshotstore.cpp \
     videofilesource.cpp
 
@@ -84,6 +85,7 @@ HEADERS += \
     qfaceobject.h \
     qquerywidget.h \
     qregisterwidget.h \
+    rtspsource.h \
     snapshotstore.h \
     videofilesource.h
 

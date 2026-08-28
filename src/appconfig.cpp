@@ -91,6 +91,18 @@ int AppConfig::snapshotRetentionDays()
     return ok && value >= 1 && value <= 3650 ? value : 30;
 }
 
+QString AppConfig::rtspUrl()
+{
+    return qEnvironmentVariable("FACE_ATTENDANCE_RTSP_URL").trimmed();
+}
+
+int AppConfig::rtspReconnectIntervalMilliseconds()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_RTSP_RECONNECT_INTERVAL_MS").toInt(&ok);
+    return ok && value >= 500 && value <= 60000 ? value : 3000;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

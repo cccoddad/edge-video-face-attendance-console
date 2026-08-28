@@ -18,6 +18,8 @@ public:
     static int attendanceCooldownSeconds();
     static int minimumCheckoutIntervalSeconds();
     static int snapshotRetentionDays();
+    static QString rtspUrl();
+    static int rtspReconnectIntervalMilliseconds();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

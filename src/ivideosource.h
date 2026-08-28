@@ -10,6 +10,8 @@ enum class VideoSourceState
     Opening,
     Playing,
     Ended,
+    Interrupted,
+    Reconnecting,
     Error,
     Stopped
 };
