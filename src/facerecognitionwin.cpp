@@ -31,6 +31,10 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     ui->setupUi(this);
     ui->videoLb->setAlignment(Qt::AlignCenter);
     ui->videoLb->setText(QStringLiteral("请选择本地视频文件"));
+    ui->RnumberLb->setText(QStringLiteral("--"));
+    ui->RnameLb->setText(QStringLiteral("未识别"));
+    ui->RpartmentLb->setText(QStringLiteral("等待本地视频"));
+    ui->RtimeLb->setText(QStringLiteral("--:--:--"));
     updateVideoSourceStatus();
     updateAttendanceStatus(QStringLiteral("等待本地视频"));
     //初始化线程

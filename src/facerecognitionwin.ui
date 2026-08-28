@@ -199,7 +199,7 @@
       </font>
      </property>
      <property name="text">
-      <string>007</string>
+      <string>--</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -220,7 +220,7 @@
       </font>
      </property>
      <property name="text">
-      <string>何青德</string>
+      <string>未识别</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -241,7 +241,7 @@
       </font>
      </property>
      <property name="text">
-      <string>嵌入式软件</string>
+      <string>等待本地视频</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -262,7 +262,7 @@
       </font>
      </property>
      <property name="text">
-      <string>18:00:10</string>
+      <string>--:--:--</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
