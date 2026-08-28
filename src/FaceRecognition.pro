@@ -62,6 +62,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     appconfig.cpp \
+    attendancereport.cpp \
     attendancerepository.cpp \
     attendancestatemachine.cpp \
     ivideosource.cpp \
@@ -74,6 +75,7 @@ SOURCES += \
 
 HEADERS += \
     appconfig.h \
+    attendancereport.h \
     attendancerepository.h \
     attendancestatemachine.h \
     ivideosource.h \

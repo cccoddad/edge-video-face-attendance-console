@@ -18,8 +18,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>220</width>
-     <height>40</height>
+     <width>110</width>
+     <height>32</height>
     </rect>
    </property>
   </widget>
@@ -29,20 +29,88 @@
      <x>220</x>
      <y>0</y>
      <width>100</width>
-     <height>40</height>
+     <height>32</height>
     </rect>
    </property>
    <property name="text">
     <string>查询</string>
    </property>
-  </widget>
-  <widget class="QTableView" name="QdataView">
+   </widget>
+   <widget class="QLineEdit" name="QnumberLe">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>38</y>
+      <width>108</width>
+      <height>28</height>
+     </rect>
+    </property>
+    <property name="placeholderText">
+     <string>工号</string>
+    </property>
+   </widget>
+   <widget class="QDateEdit" name="QstartDateDe">
+    <property name="geometry">
+     <rect>
+      <x>110</x>
+      <y>38</y>
+      <width>103</width>
+      <height>28</height>
+     </rect>
+    </property>
+    <property name="displayFormat">
+     <string>yyyy-MM-dd</string>
+    </property>
+    <property name="calendarPopup">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QDateEdit" name="QendDateDe">
+    <property name="geometry">
+     <rect>
+      <x>216</x>
+      <y>38</y>
+      <width>104</width>
+      <height>28</height>
+     </rect>
+    </property>
+    <property name="displayFormat">
+     <string>yyyy-MM-dd</string>
+    </property>
+    <property name="calendarPopup">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="QeventCbb">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>72</y>
+      <width>160</width>
+      <height>28</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="QexportBt">
+    <property name="geometry">
+     <rect>
+      <x>220</x>
+      <y>72</y>
+      <width>100</width>
+      <height>28</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>导出 CSV</string>
+    </property>
+   </widget>
+   <widget class="QTableView" name="QdataView">
    <property name="geometry">
     <rect>
      <x>0</x>
-     <y>40</y>
+     <y>108</y>
      <width>320</width>
-     <height>440</height>
+     <height>372</height>
     </rect>
    </property>
   </widget>

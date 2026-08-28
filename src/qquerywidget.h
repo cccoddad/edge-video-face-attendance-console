@@ -2,8 +2,9 @@
 #define QQUERYWIDGET_H
 
 #include <QWidget>
+#include <QSqlQueryModel>
 #include <QSqlTableModel>
-#include <QSqlRecord>
+#include "attendancereport.h"
 
 namespace Ui {
 class QqueryWidget;
@@ -19,10 +20,16 @@ public:
 
 private slots:
     void on_QqueryBt_clicked();
+    void on_QexportBt_clicked();
+    void on_QtableCbb_currentIndexChanged(int index);
 
 private:
+    AttendanceReportFilter attendanceFilter() const;
+    void refreshAttendanceRecords();
+    void updateTableMode();
     Ui::QqueryWidget *ui;
-    QSqlTableModel *model;
+    QSqlTableModel *employeeModel;
+    QSqlQueryModel *attendanceModel;
 };
 
 #endif // QQUERYWIDGET_H
