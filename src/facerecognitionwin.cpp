@@ -1,0 +1,273 @@
+#include "facerecognitionwin.h"
+#include "qquerywidget.h"
+#include "qregisterwidget.h"
+#include "appconfig.h"
+#include "videofilesource.h"
+#include "ui_facerecognitionwin.h"
+#include <QDateTime>
+#include <QDebug>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QMetaObject>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QUrl>
+FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::FaceRecognitionWin),
+       win(nullptr),
+       timerid(0),
+       mVideoSource(new VideoFileSource),
+       mRecognitionInputActive(false),
+       mVideoSessionId(0),
+       mthread(new QThread(this))
+{
+    ui->setupUi(this);
+    ui->videoLb->setAlignment(Qt::AlignCenter);
+    ui->videoLb->setText(QStringLiteral("请选择本地视频文件"));
+    updateVideoSourceStatus();
+    //初始化线程
+    //把人脸识别对象移动到线程中
+    mfaceObject.moveToThread(mthread);
+    //启动线程
+    mthread->start();
+    //由于movetothread线程里面的任务函数必须有信号启动，所以用信号关联任务函数
+    connect(this, &FaceRecognitionWin::sendQueryCmd, &mfaceObject, &QFaceObject::queryface, Qt::QueuedConnection);
+    //当查询到结果通过信号发送
+    connect(&mfaceObject,&QFaceObject::sendQueryResult,this, &FaceRecognitionWin::recvQueryResult);
+}
+
+//查询结果
+void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 requestId)
+{
+    if (!mRecognitionInputActive || requestId != mVideoSessionId) {
+        return;
+    }
+    //打包查询质料
+    qDebug()<<index<<similarty;
+    if(index < 0 || similarty < AppConfig::recognitionThreshold()) {
+        showUnknownPerson();
+        return;
+    }
+
+    //根据id查询user表，并且把当前时间人员数据插入到考勤数据表
+    QSqlQuery query;
+    query.prepare("SELECT number, name, partment, facepictrue FROM user WHERE faceid = ?");
+    query.addBindValue(index);
+    if (!query.exec() || !query.next()) {
+        qWarning() << "employee lookup failed:" << query.lastError().text();
+        showUnknownPerson();
+        return;
+    }
+    //查询到用户
+    //获取，工号number，name，partment，facepictrue，显示界面上
+    const QString number = query.value("number").toString();
+    ui->RnumberLb->setText(number);
+    ui->RnameLb->setText(query.value("name").toString());
+    ui->RpartmentLb->setText(query.value("partment").toString());
+    const QString facepictrue = query.value("facepictrue").toString();
+    //显示图片
+    const QString sty = QString("border:1px solid #123456;border-radius:80px;border-image: url(%1);")
+                            .arg(QUrl::fromLocalFile(facepictrue).toString());
+    ui->RheadLb->setStyleSheet(sty);
+    const QDateTime now = QDateTime::currentDateTime();
+    ui->RtimeLb->setText(now.toString("hh:mm:ss"));
+
+    const QDateTime previous = mLastAttendanceByNumber.value(number);
+    if (!previous.isValid() || previous.secsTo(now) >= AppConfig::attendanceCooldownSeconds()) {
+        if (insertAttendanceRecord(number, now)) {
+            mLastAttendanceByNumber.insert(number, now);
+        }
+    }
+}
+
+void FaceRecognitionWin::timerEvent(QTimerEvent *)
+{
+    if (!mVideoSource || !mVideoSource->read(videoImage)) {
+        mRecognitionInputActive = false;
+        if (timerid != 0) {
+            killTimer(timerid);
+            timerid = 0;
+        }
+        updateVideoSourceStatus();
+        return;
+    }
+
+    {
+        //把Mat数据转换为RGB
+        cv::Mat rgbImage;
+        cv::cvtColor(videoImage,rgbImage,cv::COLOR_BGR2RGB);
+        //把Mat数据转QImage
+        QImage image(rgbImage.data,rgbImage.cols,rgbImage.rows,rgbImage.step,QImage::Format_RGB888);
+        //在Qt中显示
+        ui->videoLb->setPixmap(QPixmap::fromImage(image).scaled(ui->videoLb->size(),
+                                                                  Qt::KeepAspectRatio,
+                                                                  Qt::SmoothTransformation));
+
+        //跟踪人脸
+        const cv::Mat recognitionFrame = videoImage.clone();
+        bool shouldQuery = false;
+        const bool invoked = QMetaObject::invokeMethod(&mfaceObject, "trackerface",
+                                                        Qt::BlockingQueuedConnection,
+                                                        Q_RETURN_ARG(bool, shouldQuery),
+                                                        Q_ARG(cv::Mat, recognitionFrame));
+        if (invoked && shouldQuery)
+        {
+            //去数据库查询人脸
+            emit sendQueryCmd(recognitionFrame, mVideoSessionId);
+        }
+    }
+}
+
+FaceRecognitionWin::~FaceRecognitionWin()
+{
+    stopVideoSource();
+    mthread->quit();
+    mthread->wait(3000);
+    delete ui;
+}
+
+void FaceRecognitionWin::on_openVideoBt_clicked()
+{
+    const QString filePath = QFileDialog::getOpenFileName(this,
+                                                           QStringLiteral("打开本地视频文件"),
+                                                           QString(),
+                                                           QStringLiteral("视频文件 (*.mp4 *.avi *.mkv *.mov *.wmv);;所有文件 (*.*)"));
+    if (!filePath.isEmpty()) {
+        openVideoFile(filePath);
+    }
+}
+
+void FaceRecognitionWin::on_stopVideoBt_clicked()
+{
+    stopVideoSource();
+    updateVideoSourceStatus();
+}
+
+void FaceRecognitionWin::openVideoFile(const QString &filePath)
+{
+    stopVideoSource();
+
+    QString errorMessage;
+    if (!mVideoSource->open(filePath, &errorMessage)) {
+        updateVideoSourceStatus();
+        QMessageBox::warning(this, QStringLiteral("打开视频失败"), errorMessage);
+        return;
+    }
+
+    mRecognitionInputActive = true;
+    timerid = startTimer(33);
+    updateVideoSourceStatus();
+}
+
+void FaceRecognitionWin::stopVideoSource()
+{
+    mRecognitionInputActive = false;
+    ++mVideoSessionId;
+    if (timerid != 0) {
+        killTimer(timerid);
+        timerid = 0;
+    }
+    if (mVideoSource) {
+        mVideoSource->close();
+    }
+}
+
+void FaceRecognitionWin::updateVideoSourceStatus()
+{
+    if (!mVideoSource) {
+        ui->videoStatusLb->setText(QStringLiteral("视频状态：未初始化"));
+        return;
+    }
+
+    QString status = QStringLiteral("视频状态：%1").arg(IVideoSource::stateText(mVideoSource->state()));
+    if (mVideoSource->state() == VideoSourceState::Error && !mVideoSource->lastError().isEmpty()) {
+        status.append(QStringLiteral("（%1）").arg(mVideoSource->lastError()));
+    } else if (mVideoSource->state() == VideoSourceState::Playing && !mVideoSource->displayName().isEmpty()) {
+        status.append(QStringLiteral("：%1").arg(mVideoSource->displayName()));
+    }
+    ui->videoStatusLb->setText(status);
+}
+
+void FaceRecognitionWin::showUnknownPerson()
+{
+    ui->RnumberLb->setText("--");
+    ui->RnameLb->setText("陌生人");
+    ui->RpartmentLb->setText("未通过识别阈值");
+    ui->RtimeLb->setText(QTime::currentTime().toString("hh:mm:ss"));
+}
+
+bool FaceRecognitionWin::insertAttendanceRecord(const QString &number, const QDateTime &timestamp)
+{
+    QSqlQuery query;
+    query.prepare("INSERT INTO recorduser(number, checktime) VALUES(?, ?)");
+    query.addBindValue(number);
+    query.addBindValue(timestamp.toString("yyyy-MM-dd hh:mm:ss"));
+    if (!query.exec()) {
+        qWarning() << "attendance insert failed:" << query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+void FaceRecognitionWin::on_recognitionRb_clicked()
+{
+    if(win==nullptr) //判断是否显示其他两个界面
+    {
+        return ; //说明当前显示的就是
+    }else
+    {
+        ui->recognitionWidget->show();//显示识别界面
+        if(win->inherits("QRegisterWidget"))
+        {
+            QRegisterWidget *twin = (QRegisterWidget*)this->win;
+            disconnect(twin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+        }
+        delete win; //删除其他界面（注册，查询）
+        win = nullptr; //指向nullptr为了是后面判断
+    }
+}
+
+void FaceRecognitionWin::on_registerRb_clicked()
+{
+    if(this->win != nullptr) //判断注册， 查询界面是否创建，如果创建就销毁
+    {
+        if(this->win->inherits("QRegisterWidget"))
+        {
+            QRegisterWidget *twin = (QRegisterWidget*)this->win;
+            disconnect(twin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+        }
+        delete this->win;
+        this->win = nullptr;
+    }
+    QRegisterWidget *rwin = new  QRegisterWidget(this);//创建注册界面
+    rwin->setFaceObject(&mfaceObject);
+    connect(rwin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+    this->win = rwin;
+    rwin->setGeometry(ui->recognitionWidget->geometry());//设置显示位置
+    ui->recognitionWidget->hide();//隐藏识别界面
+    rwin->show();//显示注册界面
+}
+
+void FaceRecognitionWin::recvName(const QString &name)
+{
+    cv::imwrite(name.toUtf8().data(), videoImage);
+}
+
+void FaceRecognitionWin::on_queryRb_clicked()
+{
+    if(win != nullptr)//判断注册， 查询界面是否创建，如果创建就销毁
+    {
+        if(win->inherits("QRegisterWidget"))
+        {
+            QRegisterWidget *twin = (QRegisterWidget*)this->win;
+            disconnect(twin,&QRegisterWidget::sendName,this, &FaceRecognitionWin::recvName);
+        }
+        delete win;
+        win = nullptr;
+    }
+    win = new  QqueryWidget(this);//创建查询界面
+    win->setGeometry(ui->recognitionWidget->geometry());//设置显示位置
+    ui->recognitionWidget->hide();//隐藏识别界面
+    win->show();//显示查询界面
+}

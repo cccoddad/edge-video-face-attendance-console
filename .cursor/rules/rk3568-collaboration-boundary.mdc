@@ -1,0 +1,28 @@
+---
+description: Enforce the read-only Qt client boundary with the RK3568 media gateway.
+alwaysApply: true
+---
+
+# RK3568 Gateway Collaboration Boundary
+
+The RK3568 audio/video edge gateway is the higher-priority upstream media data plane. This Qt attendance application is a Windows-only downstream, read-only client. When there is a conflict, adapt this client to the gateway's implemented and accepted interface.
+
+## Non-negotiable restrictions
+
+- Never operate, reset, configure, or access any RK3568 `/dev/video*`, ALSA device, USB camera, microphone, NPU, gateway process, board service, board file, port, media parameter, model, or data directory.
+- Never generate or execute a board-mutating SSH, serial, shell, deployment, service, camera, NPU, RTSP, or deletion command for this Qt project.
+- Never read, modify, build, format, or write to the RK3568 gateway repository, deployment directory, `/userdata`, TF card, or its logs, recordings, evidence, models, or SQLite files.
+- Do not request moving the camera to Windows. The gateway exclusively owns the camera and microphone.
+
+## Qt implementation contract
+
+- Joint operation and final demonstration use an `RtspSource`; keep `LocalCameraSource` only for independent Qt development.
+- Until an accepted gateway stream exists, use local video files for UI, recognition, database, state-machine, and regression development. A failed RTSP connection is not a Qt defect.
+- Make the RTSP URL configurable. The expected future minimum interface is `rtsp://<rk3568-ip>:8554/live`, H.264, 1280x720, 30 FPS, video only. Do not hard-code an IP, listen on 8554, or create a Windows RTSP server.
+- The client only connects and reads. It must distinguish RTSP interruption from an image containing no face; do not create attendance events during interruption and reconnect automatically.
+- All recognition, matching, attendance decisions, snapshots, SQLite, CSV exports, logs, personnel data, and models stay in this application's Windows-local data directory. Never share data/runtime/model/log directories with the gateway.
+- Face inference must run on the Windows PC only. Do not deploy face models to RK3568 or invoke RKNN from this project.
+
+## Confirmation gate
+
+Before any potential cross-project action affecting a service, device, NPU, port, media parameter, board state, data, or interface, explain the proposed change, reason, effect on the active gateway test, interruption risk, and a non-board alternative. Wait for explicit user approval before proceeding.

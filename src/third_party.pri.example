@@ -1,0 +1,3 @@
+# Copy this file to third_party.pri and set the directory that contains
+# opencv452 and SeetaFace from the legacy course package.
+THIRD_PARTY_ROOT = D:/path/to/opencv-SeetaFace-qt5.14.0minGW版本

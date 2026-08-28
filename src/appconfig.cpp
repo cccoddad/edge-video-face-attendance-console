@@ -1,0 +1,87 @@
+#include "appconfig.h"
+
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QStringList>
+
+namespace {
+QString configuredPath(const char *name, const QString &fallback)
+{
+    const QString value = qEnvironmentVariable(name);
+    return value.isEmpty() ? fallback : QDir::cleanPath(value);
+}
+}
+
+QString AppConfig::dataDirectory()
+{
+    const QString fallback = QDir::home().filePath("FaceAttendance/data");
+    const QString path = configuredPath("FACE_ATTENDANCE_DATA_DIR", fallback);
+    QDir().mkpath(path);
+    return path;
+}
+
+QString AppConfig::photoDirectory()
+{
+    const QString path = QDir(dataDirectory()).filePath("photos");
+    QDir().mkpath(path);
+    return path;
+}
+
+QString AppConfig::databasePath()
+{
+    return QDir(dataDirectory()).filePath("attendance.db");
+}
+
+QString AppConfig::faceDatabasePath()
+{
+    return QDir(dataDirectory()).filePath("faces.db");
+}
+
+QString AppConfig::modelDirectory()
+{
+    const QString fallback = QDir(QCoreApplication::applicationDirPath()).filePath("models");
+    return configuredPath("FACE_ATTENDANCE_MODEL_DIR", fallback);
+}
+
+QString AppConfig::modelPath(const QString &fileName)
+{
+    return QDir(modelDirectory()).filePath(fileName);
+}
+
+float AppConfig::recognitionThreshold()
+{
+    bool ok = false;
+    const float value = qEnvironmentVariable("FACE_ATTENDANCE_SIMILARITY_THRESHOLD").toFloat(&ok);
+    return ok && value > 0.0f && value < 1.0f ? value : 0.70f;
+}
+
+int AppConfig::attendanceCooldownSeconds()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_COOLDOWN_SECONDS").toInt(&ok);
+    return ok && value >= 0 ? value : 30;
+}
+
+bool AppConfig::hasRequiredModels(QString *errorMessage)
+{
+    const QStringList requiredModels = {
+        "fd_2_00.dat",
+        "pd_2_00_pts5.dat",
+        "fr_2_10.dat"
+    };
+
+    QStringList missingModels;
+    for (const QString &model : requiredModels) {
+        if (!QFileInfo::exists(modelPath(model))) {
+            missingModels.append(model);
+        }
+    }
+
+    if (!missingModels.isEmpty() && errorMessage) {
+        *errorMessage = QString("未找到模型文件：%1\n模型目录：%2\n"
+                                "可通过 FACE_ATTENDANCE_MODEL_DIR 指定模型目录。")
+                            .arg(missingModels.join(", "), modelDirectory());
+    }
+    return missingModels.isEmpty();
+}
