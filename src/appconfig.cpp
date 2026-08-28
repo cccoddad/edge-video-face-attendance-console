@@ -56,11 +56,25 @@ float AppConfig::recognitionThreshold()
     return ok && value > 0.0f && value < 1.0f ? value : 0.70f;
 }
 
+int AppConfig::recognitionConfirmationFrames()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_CONFIRMATION_FRAMES").toInt(&ok);
+    return ok && value >= 1 && value <= 10 ? value : 3;
+}
+
 int AppConfig::attendanceCooldownSeconds()
 {
     bool ok = false;
     const int value = qEnvironmentVariable("FACE_ATTENDANCE_COOLDOWN_SECONDS").toInt(&ok);
     return ok && value >= 0 ? value : 30;
+}
+
+int AppConfig::minimumCheckoutIntervalSeconds()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_MINIMUM_CHECKOUT_INTERVAL_SECONDS").toInt(&ok);
+    return ok && value >= 0 ? value : 4 * 60 * 60;
 }
 
 bool AppConfig::hasRequiredModels(QString *errorMessage)

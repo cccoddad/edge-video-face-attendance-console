@@ -29,7 +29,7 @@ public slots:
     void queryface(const cv::Mat &faceMat, quint64 requestId);
     //注册人脸
     int registerface(const cv::Mat &faceMat);
-    //跟踪--当人脸检测到不连续（也就是不同人的时候返回true），如果一值是同一个人就返回false
+    //跟踪--当前帧恰好检测到一张人脸时返回 true，供连续帧确认逻辑使用
     bool trackerface(const cv::Mat &faceMat);
 signals:
     //当查询到人脸的时候把人脸id和相似度发送出来
@@ -37,7 +37,6 @@ signals:
 protected:
     FaceEngine  *mfaceEngine;
     FaceTracker *mfaceTracker;
-    int mLastTrackedPid = -1;
 };
 
 #endif // QFACEOBJECT_H

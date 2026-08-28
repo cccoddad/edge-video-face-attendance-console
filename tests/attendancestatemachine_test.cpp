@@ -1,0 +1,107 @@
+#include "../src/attendancerepository.h"
+#include "../src/attendancestatemachine.h"
+
+#include <QCoreApplication>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QVariant>
+#include <cstdio>
+
+namespace {
+bool confirm(AttendanceStateMachine *machine, const QString &number,
+             const QDateTime &timestamp, AttendanceConfirmation *confirmation)
+{
+    return !machine->observe(number, 0.91f, timestamp, confirmation)
+            && !machine->observe(number, 0.92f, timestamp.addSecs(1), confirmation)
+            && machine->observe(number, 0.93f, timestamp.addSecs(2), confirmation);
+}
+}
+
+int main(int argc, char *argv[])
+{
+    QCoreApplication application(argc, argv);
+    QSqlDatabase database = QSqlDatabase::addDatabase("QSQLITE", "attendance-state-test");
+    database.setDatabaseName(":memory:");
+    if (!database.open()) {
+        std::fprintf(stderr, "Cannot open in-memory SQLite: %s\n",
+                     qPrintable(database.lastError().text()));
+        return 2;
+    }
+
+    QSqlQuery createQuery(database);
+    if (!createQuery.exec("CREATE TABLE recorduser(id integer primary key autoincrement, "
+                          "number varchar(32), checktime text)")) {
+        std::fprintf(stderr, "Cannot create record table: %s\n",
+                     qPrintable(createQuery.lastError().text()));
+        return 3;
+    }
+
+    AttendanceRepository repository(database);
+    QString schemaError;
+    if (!repository.ensureSchema(&schemaError)) {
+        std::fprintf(stderr, "Schema migration failed: %s\n", qPrintable(schemaError));
+        return 4;
+    }
+
+    AttendanceStateMachine machine(3);
+    const QDateTime checkInTime(QDate(2026, 8, 28), QTime(8, 0));
+    AttendanceConfirmation confirmation;
+    if (!confirm(&machine, "E001", checkInTime, &confirmation)
+            || confirmation.number != "E001") {
+        std::fprintf(stderr, "Three-frame check-in confirmation failed\n");
+        return 5;
+    }
+
+    AttendanceWriteResult result = repository.record(confirmation, 4 * 60 * 60, "video-file");
+    if (result.status != AttendanceWriteStatus::Inserted
+            || result.eventType != AttendanceEventType::CheckIn) {
+        std::fprintf(stderr, "Check-in write failed: %s\n", qPrintable(result.message));
+        return 6;
+    }
+
+    machine.reset();
+    if (!confirm(&machine, "E001", checkInTime.addSecs(60), &confirmation)) {
+        std::fprintf(stderr, "Repeated confirmation setup failed\n");
+        return 7;
+    }
+    result = repository.record(confirmation, 4 * 60 * 60, "video-file");
+    if (result.status != AttendanceWriteStatus::Suppressed) {
+        std::fprintf(stderr, "Short-interval duplicate was not suppressed\n");
+        return 8;
+    }
+
+    machine.reset();
+    if (!confirm(&machine, "E001", checkInTime.addSecs(4 * 60 * 60), &confirmation)) {
+        std::fprintf(stderr, "Check-out confirmation setup failed\n");
+        return 9;
+    }
+    result = repository.record(confirmation, 4 * 60 * 60, "video-file");
+    if (result.status != AttendanceWriteStatus::Inserted
+            || result.eventType != AttendanceEventType::CheckOut) {
+        std::fprintf(stderr, "Check-out write failed: %s\n", qPrintable(result.message));
+        return 10;
+    }
+
+    machine.reset();
+    if (!confirm(&machine, "E001", checkInTime.addSecs(5 * 60 * 60), &confirmation)) {
+        std::fprintf(stderr, "Completed-day confirmation setup failed\n");
+        return 11;
+    }
+    result = repository.record(confirmation, 4 * 60 * 60, "video-file");
+    if (result.status != AttendanceWriteStatus::Suppressed) {
+        std::fprintf(stderr, "Completed-day event was not suppressed\n");
+        return 12;
+    }
+
+    QSqlQuery countQuery(database);
+    if (!countQuery.exec("SELECT COUNT(*) FROM recorduser") || !countQuery.next()
+            || countQuery.value(0).toInt() != 2) {
+        std::fprintf(stderr, "Unexpected attendance row count\n");
+        return 13;
+    }
+
+    std::fprintf(stdout, "Attendance state machine test passed: check-in, check-out and idempotency verified\n");
+    database.close();
+    QSqlDatabase::removeDatabase("attendance-state-test");
+    return 0;
+}

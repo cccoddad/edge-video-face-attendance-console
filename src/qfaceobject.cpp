@@ -94,7 +94,7 @@ int QFaceObject::registerface(const cv::Mat &faceMat)
     return faceid;
 }
 
-//跟踪人脸，如果人脸发生变化，就返回true
+//跟踪人脸，当前帧恰好有一张人脸时返回 true
 bool QFaceObject::trackerface(const cv::Mat &faceMat)
 {
     if (faceMat.empty()) {
@@ -106,17 +106,5 @@ bool QFaceObject::trackerface(const cv::Mat &faceMat)
     seetaData.height = faceMat.rows;
     seetaData.channels = faceMat.channels();
     SeetaTrackingFaceInfoArray faceArray = mfaceTracker->track(seetaData);//跟踪,返回人脸数据
-    if(faceArray.size != 1) //判断是否检测到1个人脸
-    {
-        mLastTrackedPid = -1;
-        return false;
-    }
-    if(mLastTrackedPid == faceArray.data[0].PID)//判断跟踪人是否变化
-    {
-        return false;
-    }else
-    {
-        mLastTrackedPid = faceArray.data[0].PID;
-        return true;
-    }
+    return faceArray.size == 1;
 }

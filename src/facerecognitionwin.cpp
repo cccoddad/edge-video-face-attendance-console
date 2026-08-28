@@ -19,13 +19,17 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        timerid(0),
        mVideoSource(new VideoFileSource),
        mRecognitionInputActive(false),
-       mVideoSessionId(0),
-       mthread(new QThread(this))
+       mRecognitionRequestPending(false),
+       mRecognitionRequestId(0),
+       mthread(new QThread(this)),
+       mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
+       mAttendanceRepository(QSqlDatabase::database())
 {
     ui->setupUi(this);
     ui->videoLb->setAlignment(Qt::AlignCenter);
     ui->videoLb->setText(QStringLiteral("请选择本地视频文件"));
     updateVideoSourceStatus();
+    updateAttendanceStatus(QStringLiteral("等待本地视频"));
     //初始化线程
     //把人脸识别对象移动到线程中
     mfaceObject.moveToThread(mthread);
@@ -40,12 +44,15 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
 //查询结果
 void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 requestId)
 {
-    if (!mRecognitionInputActive || requestId != mVideoSessionId) {
+    if (!mRecognitionInputActive || requestId != mRecognitionRequestId) {
         return;
     }
+    mRecognitionRequestPending = false;
     //打包查询质料
     qDebug()<<index<<similarty;
     if(index < 0 || similarty < AppConfig::recognitionThreshold()) {
+        mAttendanceStateMachine.reset();
+        updateAttendanceStatus(QStringLiteral("未通过识别阈值"));
         showUnknownPerson();
         return;
     }
@@ -56,6 +63,8 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     query.addBindValue(index);
     if (!query.exec() || !query.next()) {
         qWarning() << "employee lookup failed:" << query.lastError().text();
+        mAttendanceStateMachine.reset();
+        updateAttendanceStatus(QStringLiteral("查询人员信息失败"), true);
         showUnknownPerson();
         return;
     }
@@ -73,12 +82,30 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
     const QDateTime now = QDateTime::currentDateTime();
     ui->RtimeLb->setText(now.toString("hh:mm:ss"));
 
-    const QDateTime previous = mLastAttendanceByNumber.value(number);
-    if (!previous.isValid() || previous.secsTo(now) >= AppConfig::attendanceCooldownSeconds()) {
-        if (insertAttendanceRecord(number, now)) {
-            mLastAttendanceByNumber.insert(number, now);
-        }
+    AttendanceConfirmation confirmation;
+    if (!mAttendanceStateMachine.observe(number, similarty, now, &confirmation)) {
+        updateAttendanceStatus(QStringLiteral("连续确认：%1/%2")
+                               .arg(mAttendanceStateMachine.consecutiveFrames())
+                               .arg(mAttendanceStateMachine.requiredFrames()));
+        return;
     }
+
+    const QDateTime previousConfirmation = mLastAttendanceConfirmationByNumber.value(number);
+    if (previousConfirmation.isValid()
+            && previousConfirmation.secsTo(now) < AppConfig::attendanceCooldownSeconds()) {
+        updateAttendanceStatus(QStringLiteral("考勤冷却中，请勿重复识别"));
+        return;
+    }
+
+    const AttendanceWriteResult writeResult = mAttendanceRepository.record(
+                confirmation, AppConfig::minimumCheckoutIntervalSeconds(), QStringLiteral("video-file"));
+    if (writeResult.status == AttendanceWriteStatus::Failed) {
+        qWarning() << "attendance write failed:" << writeResult.message;
+        updateAttendanceStatus(writeResult.message, true);
+        return;
+    }
+    mLastAttendanceConfirmationByNumber.insert(number, now);
+    updateAttendanceStatus(writeResult.message);
 }
 
 void FaceRecognitionWin::timerEvent(QTimerEvent *)
@@ -90,6 +117,10 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
             timerid = 0;
         }
         updateVideoSourceStatus();
+        mRecognitionRequestPending = false;
+        ++mRecognitionRequestId;
+        mAttendanceStateMachine.reset();
+        updateAttendanceStatus(QStringLiteral("视频输入已停止"));
         return;
     }
 
@@ -111,10 +142,16 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
                                                         Qt::BlockingQueuedConnection,
                                                         Q_RETURN_ARG(bool, shouldQuery),
                                                         Q_ARG(cv::Mat, recognitionFrame));
-        if (invoked && shouldQuery)
-        {
+        if (!invoked || !shouldQuery) {
+            mRecognitionRequestPending = false;
+            ++mRecognitionRequestId;
+            mAttendanceStateMachine.reset();
+            updateAttendanceStatus(QStringLiteral("等待单人正脸"));
+        } else if (!mRecognitionRequestPending) {
+            mRecognitionRequestPending = true;
+            ++mRecognitionRequestId;
             //去数据库查询人脸
-            emit sendQueryCmd(recognitionFrame, mVideoSessionId);
+            emit sendQueryCmd(recognitionFrame, mRecognitionRequestId);
         }
     }
 }
@@ -163,7 +200,9 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
 void FaceRecognitionWin::stopVideoSource()
 {
     mRecognitionInputActive = false;
-    ++mVideoSessionId;
+    mRecognitionRequestPending = false;
+    ++mRecognitionRequestId;
+    mAttendanceStateMachine.reset();
     if (timerid != 0) {
         killTimer(timerid);
         timerid = 0;
@@ -171,6 +210,14 @@ void FaceRecognitionWin::stopVideoSource()
     if (mVideoSource) {
         mVideoSource->close();
     }
+}
+
+void FaceRecognitionWin::updateAttendanceStatus(const QString &message, bool failed)
+{
+    ui->attendanceStatusLb->setText(QStringLiteral("考勤状态：%1").arg(message));
+    ui->attendanceStatusLb->setStyleSheet(failed
+                                          ? QStringLiteral("color: rgb(180, 30, 30);")
+                                          : QStringLiteral("color: rgb(30, 90, 30);"));
 }
 
 void FaceRecognitionWin::updateVideoSourceStatus()
@@ -195,19 +242,6 @@ void FaceRecognitionWin::showUnknownPerson()
     ui->RnameLb->setText("陌生人");
     ui->RpartmentLb->setText("未通过识别阈值");
     ui->RtimeLb->setText(QTime::currentTime().toString("hh:mm:ss"));
-}
-
-bool FaceRecognitionWin::insertAttendanceRecord(const QString &number, const QDateTime &timestamp)
-{
-    QSqlQuery query;
-    query.prepare("INSERT INTO recorduser(number, checktime) VALUES(?, ?)");
-    query.addBindValue(number);
-    query.addBindValue(timestamp.toString("yyyy-MM-dd hh:mm:ss"));
-    if (!query.exec()) {
-        qWarning() << "attendance insert failed:" << query.lastError().text();
-        return false;
-    }
-    return true;
 }
 
 void FaceRecognitionWin::on_recognitionRb_clicked()

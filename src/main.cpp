@@ -1,5 +1,6 @@
 #include "facerecognitionwin.h"
 #include "appconfig.h"
+#include "attendancerepository.h"
 
 #include <QApplication>
 #include <QDebug>
@@ -45,14 +46,11 @@ int main(int argc, char *argv[])
         qDebug() << query.lastError().text();
     }
 
-    bool hasCheckTime = false;
-    if (query.exec("PRAGMA table_info(recorduser)")) {
-        while (query.next()) {
-            hasCheckTime = hasCheckTime || query.value(1).toString() == "checktime";
-        }
-    }
-    if (!hasCheckTime && !query.exec("ALTER TABLE recorduser ADD COLUMN checktime text")) {
-        qDebug() << query.lastError().text();
+    AttendanceRepository attendanceRepository(database);
+    QString attendanceSchemaError;
+    if (!attendanceRepository.ensureSchema(&attendanceSchemaError)) {
+        QMessageBox::critical(nullptr, "考勤数据库错误", attendanceSchemaError);
+        return -1;
     }
 
     FaceRecognitionWin window;

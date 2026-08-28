@@ -5,6 +5,8 @@
 #include <QThread>
 #include <QHash>
 #include <memory>
+#include "attendancerepository.h"
+#include "attendancestatemachine.h"
 #include "ivideosource.h"
 #include "qfaceobject.h"
 
@@ -38,19 +40,22 @@ private:
     void openVideoFile(const QString &filePath);
     void stopVideoSource();
     void updateVideoSourceStatus();
+    void updateAttendanceStatus(const QString &message, bool failed = false);
     void showUnknownPerson();
-    bool insertAttendanceRecord(const QString &number, const QDateTime &timestamp);
     Ui::FaceRecognitionWin *ui;
     QWidget *win;
     int timerid;
     cv::Mat videoImage;
     std::unique_ptr<IVideoSource> mVideoSource;
     bool mRecognitionInputActive;
-    quint64 mVideoSessionId;
+    bool mRecognitionRequestPending;
+    quint64 mRecognitionRequestId;
     //定义一个人脸识别对象
     QFaceObject mfaceObject;
     //定义一个线程用来识别
     QThread *mthread;
-    QHash<QString, QDateTime> mLastAttendanceByNumber;
+    AttendanceStateMachine mAttendanceStateMachine;
+    AttendanceRepository mAttendanceRepository;
+    QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
 };
 #endif // FACERECOGNITIONWIN_H

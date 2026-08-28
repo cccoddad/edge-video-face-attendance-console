@@ -62,6 +62,8 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     appconfig.cpp \
+    attendancerepository.cpp \
+    attendancestatemachine.cpp \
     ivideosource.cpp \
     main.cpp \
     facerecognitionwin.cpp \
@@ -72,6 +74,8 @@ SOURCES += \
 
 HEADERS += \
     appconfig.h \
+    attendancerepository.h \
+    attendancestatemachine.h \
     ivideosource.h \
     facerecognitionwin.h \
     qfaceobject.h \
