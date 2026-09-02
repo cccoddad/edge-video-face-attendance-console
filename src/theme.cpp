@@ -24,6 +24,11 @@ void Theme::apply(QApplication *application)
         QLabel#videoStatusLb, QLabel#attendanceStatusLb {
             background: #f7f9fc; color: #526177; border-radius: 5px; padding: 8px;
         }
+        QLabel#sourceEventTitle { color: #42526e; font-size: 13px; font-weight: 600; }
+        QPlainTextEdit#sourceEventView {
+            background: #f7f9fc; color: #526177; border: 1px solid #dbe3ee; border-radius: 5px;
+            padding: 6px; font-family: Consolas, "Microsoft YaHei UI"; font-size: 9pt;
+        }
         QLabel#attendanceStatusLb[failed="true"] { background: #fff0f0; color: #b42318; }
         QLabel#attendanceStatusLb[failed="false"] { color: #1f6f43; }
         QTabWidget::pane { border: 0; background: transparent; }

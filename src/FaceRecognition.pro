@@ -76,6 +76,7 @@ SOURCES += \
     rtspsource.cpp \
     snapshotstore.cpp \
     theme.cpp \
+    videosourceruntimelog.cpp \
     videofilesource.cpp
 
 HEADERS += \
@@ -93,6 +94,7 @@ HEADERS += \
     rtspsource.h \
     snapshotstore.h \
     theme.h \
+    videosourceruntimelog.h \
     videofilesource.h
 
 FORMS += \

@@ -19,7 +19,9 @@
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QPainter>
+#include <QPlainTextEdit>
 #include <QPixmap>
+#include <QScrollBar>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStyle>
@@ -50,11 +52,13 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
        mAttendanceRepository(QSqlDatabase::database()),
        mVideoSourceType(QStringLiteral("video-file")),
+       mVideoSourceRuntimeLog(50),
        mModeTabs(nullptr),
        mRecognitionTab(nullptr),
        mRegisterTab(nullptr),
        mQueryTab(nullptr)
        , mCheckoutBt(nullptr)
+       , mSourceEventView(nullptr)
 {
     ui->setupUi(this);
     setupModernLayout();
@@ -65,6 +69,7 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     ui->RpartmentLb->setText(QStringLiteral("等待本地视频"));
     ui->RtimeLb->setText(QStringLiteral("--:--:--"));
     setRecognitionAvatar(QString());
+    appendVideoSourceEvent(QStringLiteral("等待选择视频输入"));
     updateVideoSourceStatus();
     updateAttendanceStatus(QStringLiteral("等待本地视频"));
     //初始化线程
@@ -142,6 +147,17 @@ void FaceRecognitionWin::setupModernLayout()
     mediaActions->addStretch();
     mediaActions->addWidget(ui->stopVideoBt);
     videoLayout->addLayout(mediaActions);
+    auto *sourceEventTitle = new QLabel(QStringLiteral("运行事件"), ui->videoWidget);
+    sourceEventTitle->setObjectName(QStringLiteral("sourceEventTitle"));
+    videoLayout->addWidget(sourceEventTitle);
+    mSourceEventView = new QPlainTextEdit(ui->videoWidget);
+    mSourceEventView->setObjectName(QStringLiteral("sourceEventView"));
+    mSourceEventView->setReadOnly(true);
+    mSourceEventView->setUndoRedoEnabled(false);
+    mSourceEventView->setMaximumBlockCount(50);
+    mSourceEventView->setFixedHeight(112);
+    videoLayout->addWidget(mSourceEventView);
+    refreshVideoSourceEventView();
 
     mModeTabs = new QTabWidget(ui->centralwidget);
     mModeTabs->setDocumentMode(true);
@@ -347,6 +363,7 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
             timerid = 0;
         }
         updateVideoSourceStatus();
+        appendVideoSourceEvent(QStringLiteral("读取已停止"));
         mRecognitionRequestPending = false;
         ++mRecognitionRequestId;
         mPendingRecognitionFrame.release();
@@ -440,9 +457,11 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
     videoFileSource->setLoopEnabled(AppConfig::localVideoLoopEnabled());
     mVideoSource = std::move(videoFileSource);
     mVideoSourceType = QStringLiteral("video-file");
+    appendVideoSourceEvent(QStringLiteral("准备打开：%1").arg(QFileInfo(filePath).fileName()));
 
     QString errorMessage;
     if (!mVideoSource->open(filePath, &errorMessage)) {
+        appendVideoSourceEvent(QStringLiteral("打开失败：%1").arg(errorMessage));
         updateVideoSourceStatus();
         writePerformanceSample(true);
         QMessageBox::warning(this, QStringLiteral("打开视频失败"), errorMessage);
@@ -451,6 +470,7 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
 
     mRecognitionInputActive = true;
     timerid = startTimer(40);
+    appendVideoSourceEvent(QStringLiteral("已开始读取视频帧"));
     updateVideoSourceStatus();
     writePerformanceSample(true);
 }
@@ -462,8 +482,10 @@ void FaceRecognitionWin::openLocalCamera()
     mVideoSource.reset(new LocalCameraSource);
     mVideoSourceType = QStringLiteral("local-camera");
     const QString cameraIndex = QString::number(AppConfig::localCameraIndex());
+    appendVideoSourceEvent(QStringLiteral("准备打开摄像头 #%1").arg(cameraIndex));
     QString errorMessage;
     if (!mVideoSource->open(cameraIndex, &errorMessage)) {
+        appendVideoSourceEvent(QStringLiteral("打开失败：%1").arg(errorMessage));
         updateVideoSourceStatus();
         writePerformanceSample(true);
         QMessageBox::warning(this, QStringLiteral("打开本机摄像头失败"), errorMessage);
@@ -472,12 +494,16 @@ void FaceRecognitionWin::openLocalCamera()
 
     mRecognitionInputActive = true;
     timerid = startTimer(40);
+    appendVideoSourceEvent(QStringLiteral("已开始读取视频帧"));
     updateVideoSourceStatus();
     writePerformanceSample(true);
 }
 
 void FaceRecognitionWin::stopVideoSource()
 {
+    const bool hadActiveSource = mVideoSource
+            && mVideoSource->state() != VideoSourceState::Closed
+            && mVideoSource->state() != VideoSourceState::Stopped;
     mRecognitionInputActive = false;
     mRecognitionRequestPending = false;
     ++mRecognitionRequestId;
@@ -497,6 +523,9 @@ void FaceRecognitionWin::stopVideoSource()
     }
     if (mVideoSource) {
         mVideoSource->close();
+    }
+    if (hadActiveSource) {
+        appendVideoSourceEvent(QStringLiteral("已停止当前视频输入"));
     }
 }
 
@@ -524,6 +553,30 @@ void FaceRecognitionWin::updateVideoSourceStatus()
     }
     ui->videoStatusLb->setText(status);
     updateMediaControls();
+}
+
+void FaceRecognitionWin::appendVideoSourceEvent(const QString &detail)
+{
+    if (!mVideoSource) {
+        return;
+    }
+    mVideoSourceRuntimeLog.record(mVideoSourceType, mVideoSource->state(), detail);
+    refreshVideoSourceEventView();
+}
+
+void FaceRecognitionWin::refreshVideoSourceEventView()
+{
+    if (!mSourceEventView) {
+        return;
+    }
+    QStringList lines;
+    const QList<VideoSourceRuntimeEvent> events = mVideoSourceRuntimeLog.events();
+    for (const VideoSourceRuntimeEvent &event : events) {
+        lines.append(VideoSourceRuntimeLog::formatEvent(event));
+    }
+    mSourceEventView->setPlainText(lines.join(QLatin1Char('\n')));
+    QScrollBar *scrollBar = mSourceEventView->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
 }
 
 void FaceRecognitionWin::updateMediaControls()

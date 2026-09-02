@@ -13,11 +13,13 @@
 #include "checkoutconfirmation.h"
 #include "ivideosource.h"
 #include "qfaceobject.h"
+#include "videosourceruntimelog.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class FaceRecognitionWin; }
 QT_END_NAMESPACE
 class QPushButton;
+class QPlainTextEdit;
 
 class FaceRecognitionWin : public QMainWindow
 {
@@ -57,6 +59,8 @@ private:
     void openLocalCamera();
     void stopVideoSource();
     void updateVideoSourceStatus();
+    void appendVideoSourceEvent(const QString &detail);
+    void refreshVideoSourceEventView();
     void updateMediaControls();
     void updateAttendanceStatus(const QString &message, bool failed = false);
     void updateFaceOverlay(QPixmap *pixmap, const QSize &sourceSize) const;
@@ -106,10 +110,12 @@ private:
     QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
     QString mLastRecognizedNumber;
     QString mVideoSourceType;
+    VideoSourceRuntimeLog mVideoSourceRuntimeLog;
     QTabWidget *mModeTabs;
     QWidget *mRecognitionTab;
     QWidget *mRegisterTab;
     QWidget *mQueryTab;
     QPushButton *mCheckoutBt;
+    QPlainTextEdit *mSourceEventView;
 };
 #endif // FACERECOGNITIONWIN_H
