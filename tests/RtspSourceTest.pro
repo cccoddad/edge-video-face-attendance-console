@@ -23,10 +23,12 @@ win32 {
 SOURCES += \
     ../src/appconfig.cpp \
     ../src/ivideosource.cpp \
+    ../src/rtspconfiguration.cpp \
     ../src/rtspsource.cpp \
     rtspsource_test.cpp
 
 HEADERS += \
     ../src/appconfig.h \
     ../src/ivideosource.h \
+    ../src/rtspconfiguration.h \
     ../src/rtspsource.h

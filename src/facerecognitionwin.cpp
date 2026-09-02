@@ -9,13 +9,17 @@
 #include "ui_facerecognitionwin.h"
 #include <QDateTime>
 #include <QDebug>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QPainter>
@@ -25,6 +29,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStyle>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -52,12 +57,14 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
        mAttendanceRepository(QSqlDatabase::database()),
        mVideoSourceType(QStringLiteral("video-file")),
+       mRtspConfiguration(AppConfig::rtspUrl(), AppConfig::rtspReconnectIntervalMilliseconds()),
        mVideoSourceRuntimeLog(50),
        mModeTabs(nullptr),
        mRecognitionTab(nullptr),
        mRegisterTab(nullptr),
        mQueryTab(nullptr)
        , mCheckoutBt(nullptr)
+       , mConfigureRtspBt(nullptr)
        , mSourceEventView(nullptr)
 {
     ui->setupUi(this);
@@ -144,9 +151,15 @@ void FaceRecognitionWin::setupModernLayout()
     auto *mediaActions = new QHBoxLayout;
     mediaActions->addWidget(ui->openVideoBt);
     mediaActions->addWidget(ui->openLocalCameraBt);
+    mConfigureRtspBt = new QPushButton(QStringLiteral("RTSP 配置"), ui->videoWidget);
+    mConfigureRtspBt->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
+    mConfigureRtspBt->setToolTip(QStringLiteral("校验 RTSP 地址和重连等待时间；不会发起网络连接"));
+    mediaActions->addWidget(mConfigureRtspBt);
     mediaActions->addStretch();
     mediaActions->addWidget(ui->stopVideoBt);
     videoLayout->addLayout(mediaActions);
+    connect(mConfigureRtspBt, &QPushButton::clicked, this,
+            &FaceRecognitionWin::on_configureRtspBt_clicked);
     auto *sourceEventTitle = new QLabel(QStringLiteral("运行事件"), ui->videoWidget);
     sourceEventTitle->setObjectName(QStringLiteral("sourceEventTitle"));
     videoLayout->addWidget(sourceEventTitle);
@@ -449,6 +462,61 @@ void FaceRecognitionWin::on_openLocalCameraBt_clicked()
     openLocalCamera();
 }
 
+void FaceRecognitionWin::on_configureRtspBt_clicked()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("RTSP 配置（未连接）"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *formLayout = new QFormLayout;
+    auto *urlEdit = new QLineEdit(mRtspConfiguration.url(), &dialog);
+    urlEdit->setPlaceholderText(QStringLiteral("rtsp://<host>:8554/live"));
+    urlEdit->setClearButtonEnabled(true);
+    urlEdit->setToolTip(QStringLiteral("仅校验地址格式，不会建立网络连接"));
+    auto *reconnectSpin = new QSpinBox(&dialog);
+    reconnectSpin->setRange(500, 60000);
+    reconnectSpin->setSingleStep(500);
+    reconnectSpin->setSuffix(QStringLiteral(" ms"));
+    reconnectSpin->setValue(mRtspConfiguration.reconnectIntervalMilliseconds());
+    formLayout->addRow(QStringLiteral("RTSP 地址"), urlEdit);
+    formLayout->addRow(QStringLiteral("重连等待"), reconnectSpin);
+    layout->addLayout(formLayout);
+    auto *validationLabel = new QLabel(&dialog);
+    validationLabel->setWordWrap(true);
+    layout->addWidget(validationLabel);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+
+    const auto validate = [urlEdit, validationLabel, buttons]() {
+        QString errorMessage;
+        RtspConfiguration configuration;
+        const bool valid = configuration.setUrl(urlEdit->text(), &errorMessage);
+        validationLabel->setText(valid
+                                 ? QStringLiteral("地址格式有效；保存仅更新当前程序会话，不会连接或探测网络。")
+                                 : errorMessage);
+        buttons->button(QDialogButtonBox::Save)->setEnabled(valid);
+    };
+    connect(urlEdit, &QLineEdit::textChanged, &dialog, validate);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    validate();
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QString errorMessage;
+    RtspConfiguration configuration;
+    if (!configuration.setUrl(urlEdit->text(), &errorMessage)
+            || !configuration.setReconnectIntervalMilliseconds(reconnectSpin->value(), &errorMessage)) {
+        QMessageBox::warning(this, QStringLiteral("RTSP 配置无效"), errorMessage);
+        return;
+    }
+    mRtspConfiguration = configuration;
+    appendRuntimeEvent(QStringLiteral("rtsp"), VideoSourceState::Closed,
+                       QStringLiteral("地址格式校验通过，等待明确联调确认"));
+    updateAttendanceStatus(QStringLiteral("RTSP 已配置，尚未连接"));
+}
+
 void FaceRecognitionWin::openVideoFile(const QString &filePath)
 {
     stopVideoSource();
@@ -560,7 +628,13 @@ void FaceRecognitionWin::appendVideoSourceEvent(const QString &detail)
     if (!mVideoSource) {
         return;
     }
-    mVideoSourceRuntimeLog.record(mVideoSourceType, mVideoSource->state(), detail);
+    appendRuntimeEvent(mVideoSourceType, mVideoSource->state(), detail);
+}
+
+void FaceRecognitionWin::appendRuntimeEvent(const QString &sourceType, VideoSourceState state,
+                                            const QString &detail)
+{
+    mVideoSourceRuntimeLog.record(sourceType, state, detail);
     refreshVideoSourceEventView();
 }
 

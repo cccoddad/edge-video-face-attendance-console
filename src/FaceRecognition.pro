@@ -73,6 +73,7 @@ SOURCES += \
     qfaceobject.cpp \
     qquerywidget.cpp \
     qregisterwidget.cpp \
+    rtspconfiguration.cpp \
     rtspsource.cpp \
     snapshotstore.cpp \
     theme.cpp \
@@ -91,6 +92,7 @@ HEADERS += \
     qfaceobject.h \
     qquerywidget.h \
     qregisterwidget.h \
+    rtspconfiguration.h \
     rtspsource.h \
     snapshotstore.h \
     theme.h \

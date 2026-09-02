@@ -1,4 +1,5 @@
 #include "rtspsource.h"
+#include "rtspconfiguration.h"
 
 #include <QUrl>
 
@@ -81,9 +82,7 @@ QString RtspSource::displayName() const
 
 bool RtspSource::isValidRtspUrl(const QString &location)
 {
-    const QUrl url(location.trimmed());
-    return url.isValid() && url.scheme().compare(QStringLiteral("rtsp"), Qt::CaseInsensitive) == 0
-            && !url.host().isEmpty();
+    return RtspConfiguration::isValidUrl(location);
 }
 
 bool RtspSource::connectToStream(bool reconnecting, QString *errorMessage)

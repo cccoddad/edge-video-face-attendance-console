@@ -13,6 +13,7 @@
 #include "checkoutconfirmation.h"
 #include "ivideosource.h"
 #include "qfaceobject.h"
+#include "rtspconfiguration.h"
 #include "videosourceruntimelog.h"
 
 QT_BEGIN_NAMESPACE
@@ -35,6 +36,7 @@ private slots:
     void on_queryRb_clicked();
     void on_openVideoBt_clicked();
     void on_openLocalCameraBt_clicked();
+    void on_configureRtspBt_clicked();
     void on_stopVideoBt_clicked();
     void on_modeTabs_currentChanged(int index);
     void on_requestCheckout_clicked();
@@ -60,6 +62,7 @@ private:
     void stopVideoSource();
     void updateVideoSourceStatus();
     void appendVideoSourceEvent(const QString &detail);
+    void appendRuntimeEvent(const QString &sourceType, VideoSourceState state, const QString &detail);
     void refreshVideoSourceEventView();
     void updateMediaControls();
     void updateAttendanceStatus(const QString &message, bool failed = false);
@@ -110,12 +113,14 @@ private:
     QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
     QString mLastRecognizedNumber;
     QString mVideoSourceType;
+    RtspConfiguration mRtspConfiguration;
     VideoSourceRuntimeLog mVideoSourceRuntimeLog;
     QTabWidget *mModeTabs;
     QWidget *mRecognitionTab;
     QWidget *mRegisterTab;
     QWidget *mQueryTab;
     QPushButton *mCheckoutBt;
+    QPushButton *mConfigureRtspBt;
     QPlainTextEdit *mSourceEventView;
 };
 #endif // FACERECOGNITIONWIN_H
