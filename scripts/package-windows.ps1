@@ -1,8 +1,15 @@
+param(
+    [string]$OutputDirectory
+)
+
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $application = Join-Path $repoRoot 'build-qt5-mingw-release\release\FaceAttendance.exe'
-$outputDirectory = Join-Path $repoRoot 'dist\FaceAttendance-windows-x64'
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = Join-Path $repoRoot 'dist\FaceAttendance-windows-x64'
+}
+$outputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 $qtBin = 'D:\QT\5.12.0\mingw73_64\bin'
 $qtPlugins = 'D:\QT\5.12.0\mingw73_64\plugins'
 $mingwBin = 'D:\QT\Tools\mingw730_64\bin'
