@@ -74,6 +74,7 @@ SOURCES += \
     qquerywidget.cpp \
     qregisterwidget.cpp \
     rtspconfiguration.cpp \
+    rtspconfigurationdialog.cpp \
     rtspsource.cpp \
     snapshotstore.cpp \
     theme.cpp \
@@ -93,6 +94,7 @@ HEADERS += \
     qquerywidget.h \
     qregisterwidget.h \
     rtspconfiguration.h \
+    rtspconfigurationdialog.h \
     rtspsource.h \
     snapshotstore.h \
     theme.h \

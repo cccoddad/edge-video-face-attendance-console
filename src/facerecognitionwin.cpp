@@ -4,22 +4,19 @@
 #include "appconfig.h"
 #include "snapshotstore.h"
 #include "localcamerasource.h"
+#include "rtspconfigurationdialog.h"
 #include "theme.h"
 #include "videofilesource.h"
 #include "ui_facerecognitionwin.h"
 #include <QDateTime>
 #include <QDebug>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QPainter>
@@ -29,7 +26,6 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStyle>
-#include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -464,54 +460,11 @@ void FaceRecognitionWin::on_openLocalCameraBt_clicked()
 
 void FaceRecognitionWin::on_configureRtspBt_clicked()
 {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("RTSP 配置（未连接）"));
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *formLayout = new QFormLayout;
-    auto *urlEdit = new QLineEdit(mRtspConfiguration.url(), &dialog);
-    urlEdit->setPlaceholderText(QStringLiteral("rtsp://<host>:8554/live"));
-    urlEdit->setClearButtonEnabled(true);
-    urlEdit->setToolTip(QStringLiteral("仅校验地址格式，不会建立网络连接"));
-    auto *reconnectSpin = new QSpinBox(&dialog);
-    reconnectSpin->setRange(500, 60000);
-    reconnectSpin->setSingleStep(500);
-    reconnectSpin->setSuffix(QStringLiteral(" ms"));
-    reconnectSpin->setValue(mRtspConfiguration.reconnectIntervalMilliseconds());
-    formLayout->addRow(QStringLiteral("RTSP 地址"), urlEdit);
-    formLayout->addRow(QStringLiteral("重连等待"), reconnectSpin);
-    layout->addLayout(formLayout);
-    auto *validationLabel = new QLabel(&dialog);
-    validationLabel->setWordWrap(true);
-    layout->addWidget(validationLabel);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttons);
-
-    const auto validate = [urlEdit, validationLabel, buttons]() {
-        QString errorMessage;
-        RtspConfiguration configuration;
-        const bool valid = configuration.setUrl(urlEdit->text(), &errorMessage);
-        validationLabel->setText(valid
-                                 ? QStringLiteral("地址格式有效；保存仅更新当前程序会话，不会连接或探测网络。")
-                                 : errorMessage);
-        buttons->button(QDialogButtonBox::Save)->setEnabled(valid);
-    };
-    connect(urlEdit, &QLineEdit::textChanged, &dialog, validate);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    validate();
-
+    RtspConfigurationDialog dialog(mRtspConfiguration, this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
-
-    QString errorMessage;
-    RtspConfiguration configuration;
-    if (!configuration.setUrl(urlEdit->text(), &errorMessage)
-            || !configuration.setReconnectIntervalMilliseconds(reconnectSpin->value(), &errorMessage)) {
-        QMessageBox::warning(this, QStringLiteral("RTSP 配置无效"), errorMessage);
-        return;
-    }
-    mRtspConfiguration = configuration;
+    mRtspConfiguration = dialog.configuration();
     appendRuntimeEvent(QStringLiteral("rtsp"), VideoSourceState::Closed,
                        QStringLiteral("地址格式校验通过，等待明确联调确认"));
     updateAttendanceStatus(QStringLiteral("RTSP 已配置，尚未连接"));
