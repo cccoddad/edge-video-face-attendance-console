@@ -123,6 +123,29 @@ int AppConfig::localCameraIndex()
     return ok && value >= 0 && value <= 15 ? value : 0;
 }
 
+QString AppConfig::automaticVideoPath()
+{
+    return qEnvironmentVariable("FACE_ATTENDANCE_AUTO_OPEN_VIDEO_PATH").trimmed();
+}
+
+bool AppConfig::automaticLocalCameraEnabled()
+{
+    const QString value = qEnvironmentVariable("FACE_ATTENDANCE_AUTO_OPEN_LOCAL_CAMERA").trimmed();
+    return value == QStringLiteral("1") || value.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
+}
+
+QString AppConfig::performanceLogPath()
+{
+    return qEnvironmentVariable("FACE_ATTENDANCE_PERFORMANCE_LOG_PATH").trimmed();
+}
+
+int AppConfig::performanceLogIntervalMilliseconds()
+{
+    bool ok = false;
+    const int value = qEnvironmentVariable("FACE_ATTENDANCE_PERFORMANCE_LOG_INTERVAL_MS").toInt(&ok);
+    return ok && value >= 1000 && value <= 60000 ? value : 5000;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

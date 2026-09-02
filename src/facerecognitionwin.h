@@ -5,6 +5,7 @@
 #include <QThread>
 #include <QHash>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QRect>
 #include <memory>
 #include "attendancerepository.h"
@@ -65,6 +66,9 @@ private:
     void showUnknownPerson();
     void setRecognitionAvatar(const QString &photoPath);
     void captureRegistrationPhoto(const QString &photoPath);
+    void initializePerformanceLog();
+    void writePerformanceSample(bool force = false);
+    void recordAttendanceWriteResult(AttendanceWriteStatus status);
     Ui::FaceRecognitionWin *ui;
     QWidget *win;
     int timerid;
@@ -80,6 +84,18 @@ private:
     QRect mTrackedFaceRect;
     QString mTrackedFaceLabel;
     QElapsedTimer mRecognitionDispatchTimer;
+    QElapsedTimer mPerformanceTimer;
+    QFile mPerformanceLog;
+    qint64 mLastPerformanceSampleMilliseconds;
+    quint64 mFramesRead;
+    quint64 mRecognitionRequests;
+    quint64 mRecognitionResults;
+    qint64 mRecognitionLatencyTotalMilliseconds;
+    qint64 mRecognitionLatencyMaximumMilliseconds;
+    QHash<quint64, qint64> mRecognitionRequestStartMilliseconds;
+    quint64 mAttendanceInserted;
+    quint64 mAttendanceSuppressed;
+    quint64 mAttendanceFailed;
     //定义一个人脸识别对象
     QFaceObject mfaceObject;
     //定义一个线程用来识别

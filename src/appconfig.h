@@ -23,6 +23,10 @@ public:
     static int rtspReconnectIntervalMilliseconds();
     static bool localVideoLoopEnabled();
     static int localCameraIndex();
+    static QString automaticVideoPath();
+    static bool automaticLocalCameraEnabled();
+    static QString performanceLogPath();
+    static int performanceLogIntervalMilliseconds();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

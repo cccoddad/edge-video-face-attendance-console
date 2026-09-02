@@ -6,11 +6,52 @@
 
 #include <QApplication>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QTimer>
+
+namespace {
+void writeDatabaseAudit(const QSqlDatabase &database, const QString &path)
+{
+    if (path.isEmpty()) {
+        return;
+    }
+
+    const QFileInfo fileInfo(path);
+    QDir().mkpath(fileInfo.absolutePath());
+    QFile output(path);
+    if (!output.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "cannot write database audit:" << path << output.errorString();
+        return;
+    }
+
+    int totalEvents = -1;
+    int duplicateEventKeys = -1;
+    int missingEventKeys = -1;
+    QSqlQuery query(database);
+    if (query.exec("SELECT COUNT(*) FROM recorduser") && query.next()) {
+        totalEvents = query.value(0).toInt();
+    }
+    if (query.exec("SELECT COUNT(*) FROM (SELECT event_key FROM recorduser "
+                   "WHERE event_key IS NOT NULL GROUP BY event_key HAVING COUNT(*) > 1)") && query.next()) {
+        duplicateEventKeys = query.value(0).toInt();
+    }
+    if (query.exec("SELECT COUNT(*) FROM recorduser WHERE event_key IS NULL OR event_key = ''") && query.next()) {
+        missingEventKeys = query.value(0).toInt();
+    }
+
+    output.write(QStringLiteral("total_events=%1\nduplicate_event_keys=%2\nmissing_event_keys=%3\n")
+                 .arg(totalEvents)
+                 .arg(duplicateEventKeys)
+                 .arg(missingEventKeys)
+                 .toUtf8());
+}
+}
 
 int main(int argc, char *argv[])
 {
@@ -67,6 +108,13 @@ int main(int argc, char *argv[])
 
     FaceRecognitionWin window;
     window.show();
+
+    const QString databaseAuditPath = qEnvironmentVariable("FACE_ATTENDANCE_DATABASE_AUDIT_PATH").trimmed();
+    if (!databaseAuditPath.isEmpty()) {
+        QObject::connect(&application, &QCoreApplication::aboutToQuit, [&database, databaseAuditPath]() {
+            writeDatabaseAudit(database, databaseAuditPath);
+        });
+    }
 
     bool hasTestExitDelay = false;
     const int testExitDelayMs = qEnvironmentVariableIntValue("FACE_ATTENDANCE_TEST_EXIT_AFTER_MS",

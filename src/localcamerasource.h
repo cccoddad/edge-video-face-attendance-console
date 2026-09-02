@@ -17,10 +17,15 @@ public:
     QString displayName() const override;
 
 private:
+    bool openCapture(int cameraIndex);
+    bool reconnect();
     void setError(const QString &message);
 
     cv::VideoCapture m_capture;
     int m_cameraIndex;
+    int m_consecutiveReadFailures;
+    int m_consecutiveBlackFrames;
+    int m_blackFrameReconnectAttempts;
     QString m_lastError;
     VideoSourceState m_state;
 };

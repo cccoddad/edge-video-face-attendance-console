@@ -5,6 +5,57 @@
 
 #include <cstdio>
 
+namespace {
+int parseBackend(const QString &name)
+{
+    if (name.compare(QStringLiteral("dshow"), Qt::CaseInsensitive) == 0) {
+        return cv::CAP_DSHOW;
+    }
+    if (name.compare(QStringLiteral("msmf"), Qt::CaseInsensitive) == 0) {
+        return cv::CAP_MSMF;
+    }
+    return -1;
+}
+
+int runBackendProbe(const QString &cameraTarget, const QString &backendName)
+{
+    bool indexOk = false;
+    const int index = cameraTarget.toInt(&indexOk);
+    const int backend = parseBackend(backendName);
+    if ((indexOk && index < 0) || backend < 0) {
+        std::fprintf(stderr, "Usage: LocalCameraSourceTest [camera-index|camera-name] [dshow|msmf]\n");
+        return 3;
+    }
+
+    cv::VideoCapture capture;
+    if (indexOk) {
+        capture.open(index, backend);
+    } else {
+        capture.open(QStringLiteral("video=%1").arg(cameraTarget).toUtf8().constData(), backend);
+    }
+    if (!capture.isOpened()) {
+        std::fprintf(stderr, "Cannot open camera %s with backend %s\n",
+                     cameraTarget.toUtf8().constData(), backendName.toUtf8().constData());
+        return 4;
+    }
+
+    cv::Mat frame;
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        if (capture.read(frame) && !frame.empty()) {
+            const cv::Scalar brightness = cv::mean(frame);
+            std::fprintf(stdout, "Camera %s backend %s: %dx%d mean_bgr=%.3f,%.3f,%.3f\n",
+                         cameraTarget.toUtf8().constData(), backendName.toUtf8().constData(), frame.cols, frame.rows,
+                         brightness[0], brightness[1], brightness[2]);
+            return 0;
+        }
+    }
+
+    std::fprintf(stderr, "Camera %s backend %s did not return a frame\n",
+                 cameraTarget.toUtf8().constData(), backendName.toUtf8().constData());
+    return 5;
+}
+}
+
 int main(int argc, char *argv[])
 {
     QCoreApplication application(argc, argv);
@@ -25,6 +76,9 @@ int main(int argc, char *argv[])
     if (application.arguments().size() == 1) {
         std::fprintf(stdout, "Local camera source validation passed\n");
         return 0;
+    }
+    if (application.arguments().size() == 3) {
+        return runBackendProbe(application.arguments().at(1), application.arguments().at(2));
     }
     if (application.arguments().size() != 2) {
         std::fprintf(stderr, "Usage: LocalCameraSourceTest [camera-index]\n");

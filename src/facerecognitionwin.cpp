@@ -9,7 +9,9 @@
 #include "ui_facerecognitionwin.h"
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -22,6 +24,7 @@
 #include <QSqlQuery>
 #include <QStyle>
 #include <QTabWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     : QMainWindow(parent)
@@ -34,6 +37,15 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mRecognitionRequestId(0),
        mTrackerRequestPending(false),
        mTrackerRequestId(0),
+       mLastPerformanceSampleMilliseconds(0),
+       mFramesRead(0),
+       mRecognitionRequests(0),
+       mRecognitionResults(0),
+       mRecognitionLatencyTotalMilliseconds(0),
+       mRecognitionLatencyMaximumMilliseconds(0),
+       mAttendanceInserted(0),
+       mAttendanceSuppressed(0),
+       mAttendanceFailed(0),
        mthread(new QThread(this)),
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
        mAttendanceRepository(QSqlDatabase::database()),
@@ -68,6 +80,18 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     connect(&mfaceObject,&QFaceObject::sendQueryResult,this, &FaceRecognitionWin::recvQueryResult);
     connect(&mfaceObject, &QFaceObject::sendTrackerResult, this,
             &FaceRecognitionWin::recvTrackerResult);
+    initializePerformanceLog();
+
+    const QString automaticVideoPath = AppConfig::automaticVideoPath();
+    if (!automaticVideoPath.isEmpty()) {
+        QTimer::singleShot(0, this, [this, automaticVideoPath]() {
+            openVideoFile(automaticVideoPath);
+        });
+    } else if (AppConfig::automaticLocalCameraEnabled()) {
+        QTimer::singleShot(0, this, [this]() {
+            openLocalCamera();
+        });
+    }
 }
 
 void FaceRecognitionWin::setupModernLayout()
@@ -194,6 +218,15 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
         return;
     }
     mRecognitionRequestPending = false;
+    const bool hasRequestStart = mRecognitionRequestStartMilliseconds.contains(requestId);
+    const qint64 requestStartedAt = mRecognitionRequestStartMilliseconds.take(requestId);
+    if (hasRequestStart && mPerformanceTimer.isValid()) {
+        const qint64 latencyMilliseconds = mPerformanceTimer.elapsed() - requestStartedAt;
+        ++mRecognitionResults;
+        mRecognitionLatencyTotalMilliseconds += latencyMilliseconds;
+        mRecognitionLatencyMaximumMilliseconds = qMax(mRecognitionLatencyMaximumMilliseconds,
+                                                       latencyMilliseconds);
+    }
     //打包查询质料
     qDebug()<<index<<similarty;
     if(index < 0 || similarty < AppConfig::recognitionThreshold()) {
@@ -276,6 +309,7 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
 void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writeResult,
                                                const AttendanceConfirmation &confirmation)
 {
+    recordAttendanceWriteResult(writeResult.status);
     if (writeResult.status == AttendanceWriteStatus::Failed) {
         qWarning() << "attendance write failed:" << writeResult.message;
         updateAttendanceStatus(writeResult.message, true);
@@ -303,7 +337,11 @@ void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writ
 void FaceRecognitionWin::timerEvent(QTimerEvent *)
 {
     if (!mVideoSource || !mVideoSource->read(videoImage)) {
+        if (mVideoSource && mVideoSource->state() == VideoSourceState::Playing) {
+            return;
+        }
         mRecognitionInputActive = false;
+        writePerformanceSample(true);
         if (timerid != 0) {
             killTimer(timerid);
             timerid = 0;
@@ -322,6 +360,9 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         updateAttendanceStatus(QStringLiteral("视频输入已停止"));
         return;
     }
+
+    ++mFramesRead;
+    writePerformanceSample();
 
     {
         //把Mat数据转换为RGB
@@ -351,6 +392,7 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
 FaceRecognitionWin::~FaceRecognitionWin()
 {
     stopVideoSource();
+    writePerformanceSample(true);
     clearSidePage();
     mthread->quit();
     mthread->wait(3000);
@@ -402,6 +444,7 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
     QString errorMessage;
     if (!mVideoSource->open(filePath, &errorMessage)) {
         updateVideoSourceStatus();
+        writePerformanceSample(true);
         QMessageBox::warning(this, QStringLiteral("打开视频失败"), errorMessage);
         return;
     }
@@ -409,6 +452,7 @@ void FaceRecognitionWin::openVideoFile(const QString &filePath)
     mRecognitionInputActive = true;
     timerid = startTimer(40);
     updateVideoSourceStatus();
+    writePerformanceSample(true);
 }
 
 void FaceRecognitionWin::openLocalCamera()
@@ -421,6 +465,7 @@ void FaceRecognitionWin::openLocalCamera()
     QString errorMessage;
     if (!mVideoSource->open(cameraIndex, &errorMessage)) {
         updateVideoSourceStatus();
+        writePerformanceSample(true);
         QMessageBox::warning(this, QStringLiteral("打开本机摄像头失败"), errorMessage);
         return;
     }
@@ -428,6 +473,7 @@ void FaceRecognitionWin::openLocalCamera()
     mRecognitionInputActive = true;
     timerid = startTimer(40);
     updateVideoSourceStatus();
+    writePerformanceSample(true);
 }
 
 void FaceRecognitionWin::stopVideoSource()
@@ -436,6 +482,7 @@ void FaceRecognitionWin::stopVideoSource()
     mRecognitionRequestPending = false;
     ++mRecognitionRequestId;
     mPendingRecognitionFrame.release();
+    mRecognitionRequestStartMilliseconds.clear();
     mTrackerRequestPending = false;
     ++mTrackerRequestId;
     mPendingTrackerFrame.release();
@@ -639,7 +686,86 @@ void FaceRecognitionWin::recvTrackerResult(bool hasSingleFace, const QRect &face
     mRecognitionRequestPending = true;
     ++mRecognitionRequestId;
     mPendingRecognitionFrame = mPendingTrackerFrame.clone();
+    if (mPerformanceTimer.isValid()) {
+        mRecognitionRequestStartMilliseconds.insert(mRecognitionRequestId, mPerformanceTimer.elapsed());
+    }
+    ++mRecognitionRequests;
     emit sendQueryCmd(mPendingRecognitionFrame, mRecognitionRequestId);
+}
+
+void FaceRecognitionWin::initializePerformanceLog()
+{
+    const QString path = AppConfig::performanceLogPath();
+    if (path.isEmpty()) {
+        return;
+    }
+
+    const QFileInfo fileInfo(path);
+    if (!QDir().mkpath(fileInfo.absolutePath())) {
+        qWarning() << "cannot create performance log directory:" << fileInfo.absolutePath();
+        return;
+    }
+    mPerformanceLog.setFileName(path);
+    if (!mPerformanceLog.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "cannot open performance log:" << path << mPerformanceLog.errorString();
+        return;
+    }
+
+    mPerformanceLog.write("timestamp,elapsed_seconds,frames_read,recognition_requests,recognition_results,"
+                          "average_recognition_latency_ms,max_recognition_latency_ms,attendance_inserted,"
+                          "attendance_suppressed,attendance_failed,source_state,source_error\n");
+    mPerformanceLog.flush();
+    mPerformanceTimer.start();
+}
+
+void FaceRecognitionWin::writePerformanceSample(bool force)
+{
+    if (!mPerformanceLog.isOpen() || !mPerformanceTimer.isValid()) {
+        return;
+    }
+
+    const qint64 elapsedMilliseconds = mPerformanceTimer.elapsed();
+    if (!force && elapsedMilliseconds - mLastPerformanceSampleMilliseconds
+            < AppConfig::performanceLogIntervalMilliseconds()) {
+        return;
+    }
+
+    const double averageLatency = mRecognitionResults == 0 ? 0.0
+            : static_cast<double>(mRecognitionLatencyTotalMilliseconds) / mRecognitionResults;
+    const QString sourceState = mVideoSource
+            ? IVideoSource::stateText(mVideoSource->state()).replace(',', QStringLiteral(" "))
+            : QStringLiteral("未初始化");
+    QString sourceError = mVideoSource ? mVideoSource->lastError() : QString();
+    sourceError.replace(',', QStringLiteral(" "));
+    sourceError.replace('\r', QStringLiteral(" "));
+    sourceError.replace('\n', QStringLiteral(" "));
+    const QString line = QStringLiteral("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12\n")
+            .arg(QDateTime::currentDateTime().toString(Qt::ISODateWithMs))
+            .arg(elapsedMilliseconds / 1000.0, 0, 'f', 3)
+            .arg(mFramesRead)
+            .arg(mRecognitionRequests)
+            .arg(mRecognitionResults)
+            .arg(averageLatency, 0, 'f', 3)
+            .arg(mRecognitionLatencyMaximumMilliseconds)
+            .arg(mAttendanceInserted)
+            .arg(mAttendanceSuppressed)
+            .arg(mAttendanceFailed)
+            .arg(sourceState)
+            .arg(sourceError);
+    mPerformanceLog.write(line.toUtf8());
+    mPerformanceLog.flush();
+    mLastPerformanceSampleMilliseconds = elapsedMilliseconds;
+}
+
+void FaceRecognitionWin::recordAttendanceWriteResult(AttendanceWriteStatus status)
+{
+    if (status == AttendanceWriteStatus::Inserted) {
+        ++mAttendanceInserted;
+    } else if (status == AttendanceWriteStatus::Suppressed) {
+        ++mAttendanceSuppressed;
+    } else {
+        ++mAttendanceFailed;
+    }
 }
 
 void FaceRecognitionWin::on_queryRb_clicked()
