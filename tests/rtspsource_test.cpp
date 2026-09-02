@@ -1,5 +1,6 @@
 #include "../src/appconfig.h"
 #include "../src/rtspconfiguration.h"
+#include "../src/rtspreconnectscheduler.h"
 #include "../src/rtspsource.h"
 
 #include <QCoreApplication>
@@ -40,6 +41,25 @@ int main(int argc, char *argv[])
             || configuration.reconnectIntervalMilliseconds() != 1500) {
         std::fprintf(stderr, "RTSP configuration validation failed\n");
         return 7;
+    }
+    const QDateTime reconnectStart(QDate(2026, 9, 2), QTime(9, 0, 0), Qt::UTC);
+    RtspReconnectScheduler scheduler(1500);
+    if (scheduler.isScheduled() || scheduler.isDue(reconnectStart)) {
+        std::fprintf(stderr, "RTSP reconnect scheduler started in an unexpected state\n");
+        return 8;
+    }
+    scheduler.schedule(reconnectStart);
+    if (!scheduler.isScheduled()
+            || scheduler.nextAttemptAt() != reconnectStart.addMSecs(1500)
+            || scheduler.isDue(reconnectStart.addMSecs(1499))
+            || !scheduler.isDue(reconnectStart.addMSecs(1500))) {
+        std::fprintf(stderr, "RTSP reconnect scheduler did not honor the wait boundary\n");
+        return 9;
+    }
+    scheduler.clear();
+    if (scheduler.isScheduled() || scheduler.isDue(reconnectStart.addMSecs(2000))) {
+        std::fprintf(stderr, "RTSP reconnect scheduler did not clear its pending attempt\n");
+        return 10;
     }
 
     RtspSource source(AppConfig::rtspReconnectIntervalMilliseconds());

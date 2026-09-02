@@ -1,11 +1,9 @@
 #include "rtspsource.h"
 #include "rtspconfiguration.h"
 
-#include <QUrl>
-
 RtspSource::RtspSource(int reconnectIntervalMilliseconds)
     : m_state(VideoSourceState::Closed)
-    , m_reconnectIntervalMilliseconds(reconnectIntervalMilliseconds)
+    , mReconnectScheduler(reconnectIntervalMilliseconds)
 {
 }
 
@@ -19,7 +17,7 @@ bool RtspSource::open(const QString &location, QString *errorMessage)
     close();
     m_location = location.trimmed();
     m_lastError.clear();
-    m_nextReconnectAt = QDateTime();
+    mReconnectScheduler.clear();
     if (!isValidRtspUrl(m_location)) {
         m_state = VideoSourceState::Error;
         m_lastError = QStringLiteral("RTSP 地址无效：必须包含 rtsp 协议和主机名");
@@ -35,7 +33,7 @@ bool RtspSource::read(cv::Mat &frame)
 {
     frame.release();
     if (m_state == VideoSourceState::Interrupted) {
-        if (QDateTime::currentDateTime() < m_nextReconnectAt) {
+        if (!mReconnectScheduler.isDue(QDateTime::currentDateTime())) {
             return false;
         }
         if (!connectToStream(true)) {
@@ -58,7 +56,7 @@ void RtspSource::close()
     const bool wasActive = m_capture.isOpened() || m_state == VideoSourceState::Playing
             || m_state == VideoSourceState::Interrupted || m_state == VideoSourceState::Reconnecting;
     m_capture.release();
-    m_nextReconnectAt = QDateTime();
+    mReconnectScheduler.clear();
     if (wasActive) {
         m_state = VideoSourceState::Stopped;
     }
@@ -76,8 +74,7 @@ QString RtspSource::lastError() const
 
 QString RtspSource::displayName() const
 {
-    QUrl url(m_location);
-    return url.toDisplayString(QUrl::RemovePassword);
+    return RtspConfiguration(m_location).displayName();
 }
 
 bool RtspSource::isValidRtspUrl(const QString &location)
@@ -115,5 +112,5 @@ void RtspSource::setInterrupted(const QString &message)
     m_capture.release();
     m_state = VideoSourceState::Interrupted;
     m_lastError = message;
-    m_nextReconnectAt = QDateTime::currentDateTime().addMSecs(m_reconnectIntervalMilliseconds);
+    mReconnectScheduler.schedule(QDateTime::currentDateTime());
 }

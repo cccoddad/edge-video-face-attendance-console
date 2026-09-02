@@ -24,6 +24,7 @@ SOURCES += \
     ../src/appconfig.cpp \
     ../src/ivideosource.cpp \
     ../src/rtspconfiguration.cpp \
+    ../src/rtspreconnectscheduler.cpp \
     ../src/rtspsource.cpp \
     rtspsource_test.cpp
 
@@ -31,4 +32,5 @@ HEADERS += \
     ../src/appconfig.h \
     ../src/ivideosource.h \
     ../src/rtspconfiguration.h \
+    ../src/rtspreconnectscheduler.h \
     ../src/rtspsource.h

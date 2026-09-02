@@ -2,8 +2,7 @@
 #define RTSPSOURCE_H
 
 #include "ivideosource.h"
-
-#include <QDateTime>
+#include "rtspreconnectscheduler.h"
 
 class RtspSource : public IVideoSource
 {
@@ -28,8 +27,7 @@ private:
     QString m_location;
     QString m_lastError;
     VideoSourceState m_state;
-    QDateTime m_nextReconnectAt;
-    int m_reconnectIntervalMilliseconds;
+    RtspReconnectScheduler mReconnectScheduler;
 };
 
 #endif // RTSPSOURCE_H
