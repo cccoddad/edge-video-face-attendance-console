@@ -1,11 +1,12 @@
 #include "localcamerasource.h"
 
-#include <QThread>
+#include <QDateTime>
 
 namespace {
 const int kMaximumConsecutiveReadFailures = 15;
 const int kMaximumConsecutiveBlackFrames = 25;
-const int kMaximumBlackFrameReconnectAttempts = 2;
+const int kMaximumReconnectAttempts = 3;
+const int kReconnectDelayMilliseconds = 2000;
 const double kBlackFrameMaximumChannelValue = 1.0;
 }
 
@@ -13,7 +14,8 @@ LocalCameraSource::LocalCameraSource()
     : m_cameraIndex(-1)
     , m_consecutiveReadFailures(0)
     , m_consecutiveBlackFrames(0)
-    , m_blackFrameReconnectAttempts(0)
+    , m_reconnectAttempts(0)
+    , m_reconnectAtMilliseconds(0)
     , m_state(VideoSourceState::Closed)
 {
 }
@@ -34,13 +36,16 @@ bool LocalCameraSource::open(const QString &location, QString *errorMessage)
     if (!ok || cameraIndex < 0 || cameraIndex > 15) {
         setError(QStringLiteral("本机摄像头编号无效：%1").arg(location));
     } else if (!openCapture(cameraIndex)) {
-        setError(QStringLiteral("无法打开本机摄像头 #%1：设备不存在、被占用或未授权 Windows 摄像头权限")
+        setError(QStringLiteral("无法打开本机摄像头 #%1：设备不存在、仍在释放、被其他程序占用、"
+                                "未授权 Windows 摄像头权限，或 OpenCV 采集后端不可用")
                  .arg(cameraIndex));
     } else {
         m_cameraIndex = cameraIndex;
         m_consecutiveReadFailures = 0;
         m_consecutiveBlackFrames = 0;
-        m_blackFrameReconnectAttempts = 0;
+        m_reconnectAttempts = 0;
+        m_reconnectAtMilliseconds = 0;
+        m_reconnectReason.clear();
         m_state = VideoSourceState::Playing;
         return true;
     }
@@ -54,6 +59,22 @@ bool LocalCameraSource::open(const QString &location, QString *errorMessage)
 bool LocalCameraSource::read(cv::Mat &frame)
 {
     frame.release();
+    if (m_state == VideoSourceState::Reconnecting) {
+        if (QDateTime::currentMSecsSinceEpoch() < m_reconnectAtMilliseconds) {
+            return false;
+        }
+        if (reconnect()) {
+            return false;
+        }
+        if (scheduleReconnect(m_reconnectReason)) {
+            return false;
+        }
+        setError(QStringLiteral("本机摄像头延迟重连 %1 次后仍未恢复（%2）："
+                                "请检查摄像头是否在采集时从 Windows 设备列表消失，并更新或回退摄像头驱动")
+                 .arg(m_reconnectAttempts)
+                 .arg(m_reconnectReason));
+        return false;
+    }
     if (m_state != VideoSourceState::Playing) {
         return false;
     }
@@ -66,20 +87,17 @@ bool LocalCameraSource::read(cv::Mat &frame)
         if (essentiallyBlack) {
             ++m_consecutiveBlackFrames;
             if (m_consecutiveBlackFrames >= kMaximumConsecutiveBlackFrames) {
-                if (m_blackFrameReconnectAttempts < kMaximumBlackFrameReconnectAttempts) {
-                    ++m_blackFrameReconnectAttempts;
-                    if (reconnect()) {
-                        return false;
-                    }
+                if (scheduleReconnect(QStringLiteral("连续返回全黑画面"))) {
+                    return false;
                 }
-                setError(QStringLiteral("本机摄像头连续返回全黑画面，自动重连 %1 次后仍未恢复："
-                                        "请检查物理隐私遮挡、摄像头热键或彩色摄像头驱动")
-                         .arg(m_blackFrameReconnectAttempts));
+                setError(QStringLiteral("本机摄像头连续返回全黑画面，延迟重连 %1 次后仍未恢复："
+                                        "请检查 Windows 摄像头驱动、物理隐私遮挡或摄像头热键")
+                         .arg(m_reconnectAttempts));
             }
             return false;
         }
         m_consecutiveBlackFrames = 0;
-        m_blackFrameReconnectAttempts = 0;
+        m_reconnectAttempts = 0;
         return true;
     }
 
@@ -88,21 +106,26 @@ bool LocalCameraSource::read(cv::Mat &frame)
         return false;
     }
 
-    if (reconnect()) {
+    if (scheduleReconnect(QStringLiteral("连续读取失败"))) {
         return false;
     }
-    setError(QStringLiteral("本机摄像头读取中断：设备可能被占用或已断开"));
+    setError(QStringLiteral("本机摄像头连续读取失败，延迟重连 %1 次后仍未恢复：设备可能已断开")
+             .arg(m_reconnectAttempts));
     return false;
 }
 
 void LocalCameraSource::close()
 {
-    const bool wasActive = m_capture.isOpened() || m_state == VideoSourceState::Playing;
+    const bool wasActive = m_state != VideoSourceState::Closed
+            && m_state != VideoSourceState::Stopped;
     m_capture.release();
     m_cameraIndex = -1;
     m_consecutiveReadFailures = 0;
     m_consecutiveBlackFrames = 0;
-    m_blackFrameReconnectAttempts = 0;
+    m_reconnectAttempts = 0;
+    m_reconnectAtMilliseconds = 0;
+    m_reconnectReason.clear();
+    m_lastError.clear();
     if (wasActive) {
         m_state = VideoSourceState::Stopped;
     }
@@ -138,13 +161,35 @@ bool LocalCameraSource::reconnect()
 {
     const int cameraIndex = m_cameraIndex;
     m_capture.release();
-    QThread::msleep(200);
     if (!openCapture(cameraIndex)) {
         return false;
     }
 
     m_consecutiveReadFailures = 0;
     m_consecutiveBlackFrames = 0;
+    m_reconnectAtMilliseconds = 0;
+    m_reconnectReason.clear();
+    m_lastError.clear();
+    m_state = VideoSourceState::Playing;
+    return true;
+}
+
+bool LocalCameraSource::scheduleReconnect(const QString &reason)
+{
+    if (m_reconnectAttempts >= kMaximumReconnectAttempts) {
+        return false;
+    }
+
+    m_capture.release();
+    ++m_reconnectAttempts;
+    m_reconnectReason = reason;
+    m_reconnectAtMilliseconds = QDateTime::currentMSecsSinceEpoch()
+            + static_cast<qint64>(kReconnectDelayMilliseconds) * m_reconnectAttempts;
+    m_lastError = QStringLiteral("%1，等待第 %2/%3 次重连")
+            .arg(reason)
+            .arg(m_reconnectAttempts)
+            .arg(kMaximumReconnectAttempts);
+    m_state = VideoSourceState::Reconnecting;
     return true;
 }
 
@@ -154,7 +199,8 @@ void LocalCameraSource::setError(const QString &message)
     m_cameraIndex = -1;
     m_consecutiveReadFailures = 0;
     m_consecutiveBlackFrames = 0;
-    m_blackFrameReconnectAttempts = 0;
+    m_reconnectAtMilliseconds = 0;
+    m_reconnectReason.clear();
     m_lastError = message;
     m_state = VideoSourceState::Error;
 }

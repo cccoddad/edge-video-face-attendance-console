@@ -99,6 +99,19 @@ int main(int argc, char *argv[])
         std::fprintf(stderr, "Checkout confirmation did not reset on person change\n");
         return 17;
     }
+    checkoutConfirmation.start("E002", checkoutStartedAt);
+    if (checkoutConfirmation.observe(QString(), checkoutStartedAt.addMSecs(3000))
+            || checkoutConfirmation.isActive()) {
+        std::fprintf(stderr, "Checkout confirmation did not reset when no face was recognized\n");
+        return 21;
+    }
+    checkoutConfirmation.start("E002", checkoutStartedAt);
+    checkoutConfirmation.reset();
+    if (checkoutConfirmation.isActive()
+            || checkoutConfirmation.observe("E002", checkoutStartedAt.addMSecs(3000))) {
+        std::fprintf(stderr, "Checkout confirmation survived an explicit video-stop reset\n");
+        return 22;
+    }
 
     AttendanceConfirmation manualCheckout;
     manualCheckout.number = "E002";
@@ -121,6 +134,12 @@ int main(int argc, char *argv[])
             || result.eventType != AttendanceEventType::CheckOut) {
         std::fprintf(stderr, "Confirmed manual check-out write failed\n");
         return 20;
+    }
+    manualCheckout.timestamp = checkoutStartedAt.addSecs(6);
+    result = repository.recordCheckOut(manualCheckout, "local-camera");
+    if (result.status != AttendanceWriteStatus::Suppressed) {
+        std::fprintf(stderr, "Repeated manual check-out was not suppressed\n");
+        return 23;
     }
 
     machine.reset();
@@ -153,7 +172,9 @@ int main(int argc, char *argv[])
         return 13;
     }
 
-    std::fprintf(stdout, "Attendance state machine test passed: confirmation, check-in, check-out and idempotency verified\n");
+    std::fprintf(stdout,
+                 "Attendance state machine test passed: confirmation, check-in, check-out, "
+                 "person-change, no-face, video-stop reset and idempotency verified\n");
     database.close();
     QSqlDatabase::removeDatabase("attendance-state-test");
     return 0;

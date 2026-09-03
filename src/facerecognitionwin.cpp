@@ -362,7 +362,9 @@ void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writ
 void FaceRecognitionWin::timerEvent(QTimerEvent *)
 {
     if (!mVideoSource || !mVideoSource->read(videoImage)) {
-        if (mVideoSource && mVideoSource->state() == VideoSourceState::Playing) {
+        if (mVideoSource && (mVideoSource->state() == VideoSourceState::Playing
+                             || mVideoSource->state() == VideoSourceState::Reconnecting)) {
+            updateVideoSourceStatus();
             return;
         }
         mRecognitionInputActive = false;
@@ -567,7 +569,9 @@ void FaceRecognitionWin::updateVideoSourceStatus()
     }
 
     QString status = QStringLiteral("视频状态：%1").arg(IVideoSource::stateText(mVideoSource->state()));
-    if (mVideoSource->state() == VideoSourceState::Error && !mVideoSource->lastError().isEmpty()) {
+    if ((mVideoSource->state() == VideoSourceState::Error
+         || mVideoSource->state() == VideoSourceState::Reconnecting)
+            && !mVideoSource->lastError().isEmpty()) {
         status.append(QStringLiteral("（%1）").arg(mVideoSource->lastError()));
     } else if (mVideoSource->state() == VideoSourceState::Playing && !mVideoSource->displayName().isEmpty()) {
         status.append(QStringLiteral("：%1").arg(mVideoSource->displayName()));
@@ -609,9 +613,12 @@ void FaceRecognitionWin::refreshVideoSourceEventView()
 void FaceRecognitionWin::updateMediaControls()
 {
     const bool isPlaying = mVideoSource && mVideoSource->state() == VideoSourceState::Playing;
-    ui->openVideoBt->setEnabled(!isPlaying);
-    ui->openLocalCameraBt->setEnabled(!isPlaying);
-    ui->stopVideoBt->setEnabled(isPlaying);
+    const bool isReconnecting = mVideoSource
+            && mVideoSource->state() == VideoSourceState::Reconnecting;
+    const bool hasActiveSource = isPlaying || isReconnecting;
+    ui->openVideoBt->setEnabled(!hasActiveSource);
+    ui->openLocalCameraBt->setEnabled(!hasActiveSource);
+    ui->stopVideoBt->setEnabled(hasActiveSource);
     if (mCheckoutBt) {
         mCheckoutBt->setEnabled(isPlaying && !mLastRecognizedNumber.isEmpty()
                                 && !mCheckoutConfirmation.isActive());

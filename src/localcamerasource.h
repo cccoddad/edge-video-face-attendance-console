@@ -19,13 +19,16 @@ public:
 private:
     bool openCapture(int cameraIndex);
     bool reconnect();
+    bool scheduleReconnect(const QString &reason);
     void setError(const QString &message);
 
     cv::VideoCapture m_capture;
     int m_cameraIndex;
     int m_consecutiveReadFailures;
     int m_consecutiveBlackFrames;
-    int m_blackFrameReconnectAttempts;
+    int m_reconnectAttempts;
+    qint64 m_reconnectAtMilliseconds;
+    QString m_reconnectReason;
     QString m_lastError;
     VideoSourceState m_state;
 };
