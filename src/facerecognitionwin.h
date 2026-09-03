@@ -36,6 +36,7 @@ private slots:
     void on_queryRb_clicked();
     void on_openVideoBt_clicked();
     void on_openLocalCameraBt_clicked();
+    void on_openRtspBt_clicked();
     void on_configureRtspBt_clicked();
     void on_stopVideoBt_clicked();
     void on_modeTabs_currentChanged(int index);
@@ -59,7 +60,11 @@ private:
     void clearSidePage();
     void openVideoFile(const QString &filePath);
     void openLocalCamera();
+    void openRtsp();
     void stopVideoSource();
+    void pauseRecognitionInput();
+    void handleVideoSourceReadState(VideoSourceState previousState,
+                                    const QString &previousError);
     void updateVideoSourceStatus();
     void appendVideoSourceEvent(const QString &detail);
     void appendRuntimeEvent(const QString &sourceType, VideoSourceState state, const QString &detail);
@@ -120,6 +125,7 @@ private:
     QWidget *mRegisterTab;
     QWidget *mQueryTab;
     QPushButton *mCheckoutBt;
+    QPushButton *mOpenRtspBt;
     QPushButton *mConfigureRtspBt;
     QPlainTextEdit *mSourceEventView;
 };

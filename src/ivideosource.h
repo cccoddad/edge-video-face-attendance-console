@@ -29,6 +29,7 @@ public:
     virtual QString displayName() const = 0;
 
     static QString stateText(VideoSourceState state);
+    static bool shouldKeepPolling(VideoSourceState state);
 };
 
 #endif // IVIDEOSOURCE_H

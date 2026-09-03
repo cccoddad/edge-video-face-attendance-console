@@ -22,3 +22,10 @@ QString IVideoSource::stateText(VideoSourceState state)
     }
     return QStringLiteral("未知视频状态");
 }
+
+bool IVideoSource::shouldKeepPolling(VideoSourceState state)
+{
+    return state == VideoSourceState::Playing
+            || state == VideoSourceState::Interrupted
+            || state == VideoSourceState::Reconnecting;
+}

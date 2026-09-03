@@ -5,6 +5,7 @@
 #include "snapshotstore.h"
 #include "localcamerasource.h"
 #include "rtspconfigurationdialog.h"
+#include "rtspsource.h"
 #include "theme.h"
 #include "videofilesource.h"
 #include "ui_facerecognitionwin.h"
@@ -60,6 +61,7 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mRegisterTab(nullptr),
        mQueryTab(nullptr)
        , mCheckoutBt(nullptr)
+       , mOpenRtspBt(nullptr)
        , mConfigureRtspBt(nullptr)
        , mSourceEventView(nullptr)
 {
@@ -141,12 +143,17 @@ void FaceRecognitionWin::setupModernLayout()
     ui->openLocalCameraBt->setText(QStringLiteral("本机摄像头"));
     ui->openLocalCameraBt->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
     ui->openLocalCameraBt->setToolTip(QStringLiteral("打开 Windows 本机摄像头进行独立开发测试"));
+    mOpenRtspBt = new QPushButton(QStringLiteral("RTSP 视频"), ui->videoWidget);
+    mOpenRtspBt->setObjectName(QStringLiteral("openRtspBt"));
+    mOpenRtspBt->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    mOpenRtspBt->setToolTip(QStringLiteral("显式连接已配置的 RTSP 只读视频源；不会自动连接"));
     ui->stopVideoBt->setText(QStringLiteral("停止"));
     ui->stopVideoBt->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
     ui->stopVideoBt->setToolTip(QStringLiteral("停止当前视频输入并暂停识别"));
     auto *mediaActions = new QHBoxLayout;
     mediaActions->addWidget(ui->openVideoBt);
     mediaActions->addWidget(ui->openLocalCameraBt);
+    mediaActions->addWidget(mOpenRtspBt);
     mConfigureRtspBt = new QPushButton(QStringLiteral("RTSP 配置"), ui->videoWidget);
     mConfigureRtspBt->setIcon(style()->standardIcon(QStyle::SP_FileDialogDetailedView));
     mConfigureRtspBt->setToolTip(QStringLiteral("校验 RTSP 地址和重连等待时间；不会发起网络连接"));
@@ -156,6 +163,8 @@ void FaceRecognitionWin::setupModernLayout()
     videoLayout->addLayout(mediaActions);
     connect(mConfigureRtspBt, &QPushButton::clicked, this,
             &FaceRecognitionWin::on_configureRtspBt_clicked);
+    connect(mOpenRtspBt, &QPushButton::clicked, this,
+            &FaceRecognitionWin::on_openRtspBt_clicked);
     auto *sourceEventTitle = new QLabel(QStringLiteral("运行事件"), ui->videoWidget);
     sourceEventTitle->setObjectName(QStringLiteral("sourceEventTitle"));
     videoLayout->addWidget(sourceEventTitle);
@@ -361,13 +370,17 @@ void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writ
 
 void FaceRecognitionWin::timerEvent(QTimerEvent *)
 {
-    if (!mVideoSource || !mVideoSource->read(videoImage)) {
-        if (mVideoSource && (mVideoSource->state() == VideoSourceState::Playing
-                             || mVideoSource->state() == VideoSourceState::Reconnecting)) {
+    const VideoSourceState previousState = mVideoSource
+            ? mVideoSource->state() : VideoSourceState::Closed;
+    const QString previousError = mVideoSource ? mVideoSource->lastError() : QString();
+    const bool hasFrame = mVideoSource && mVideoSource->read(videoImage);
+    handleVideoSourceReadState(previousState, previousError);
+    if (!hasFrame) {
+        if (mVideoSource && IVideoSource::shouldKeepPolling(mVideoSource->state())) {
             updateVideoSourceStatus();
             return;
         }
-        mRecognitionInputActive = false;
+        pauseRecognitionInput();
         writePerformanceSample(true);
         if (timerid != 0) {
             killTimer(timerid);
@@ -375,16 +388,6 @@ void FaceRecognitionWin::timerEvent(QTimerEvent *)
         }
         updateVideoSourceStatus();
         appendVideoSourceEvent(QStringLiteral("读取已停止"));
-        mRecognitionRequestPending = false;
-        ++mRecognitionRequestId;
-        mPendingRecognitionFrame.release();
-        mTrackerRequestPending = false;
-        ++mTrackerRequestId;
-        mPendingTrackerFrame.release();
-        mTrackedFaceRect = QRect();
-        mTrackedFaceLabel.clear();
-        mAttendanceStateMachine.reset();
-        resetCheckoutConfirmation();
         updateAttendanceStatus(QStringLiteral("视频输入已停止"));
         return;
     }
@@ -460,6 +463,11 @@ void FaceRecognitionWin::on_openLocalCameraBt_clicked()
     openLocalCamera();
 }
 
+void FaceRecognitionWin::on_openRtspBt_clicked()
+{
+    openRtsp();
+}
+
 void FaceRecognitionWin::on_configureRtspBt_clicked()
 {
     RtspConfigurationDialog dialog(mRtspConfiguration, this);
@@ -468,8 +476,9 @@ void FaceRecognitionWin::on_configureRtspBt_clicked()
     }
     mRtspConfiguration = dialog.configuration();
     appendRuntimeEvent(QStringLiteral("rtsp"), VideoSourceState::Closed,
-                       QStringLiteral("地址格式校验通过，等待明确联调确认"));
-    updateAttendanceStatus(QStringLiteral("RTSP 已配置，尚未连接"));
+                       QStringLiteral("地址格式校验通过，等待用户显式连接"));
+    updateAttendanceStatus(QStringLiteral("RTSP 已配置，点击“RTSP 视频”后才会连接"));
+    updateMediaControls();
 }
 
 void FaceRecognitionWin::openVideoFile(const QString &filePath)
@@ -522,11 +531,37 @@ void FaceRecognitionWin::openLocalCamera()
     writePerformanceSample(true);
 }
 
-void FaceRecognitionWin::stopVideoSource()
+void FaceRecognitionWin::openRtsp()
 {
-    const bool hadActiveSource = mVideoSource
-            && mVideoSource->state() != VideoSourceState::Closed
-            && mVideoSource->state() != VideoSourceState::Stopped;
+    if (!mRtspConfiguration.isConfigured()) {
+        QMessageBox::information(this, QStringLiteral("尚未配置 RTSP"),
+                                 QStringLiteral("请先配置有效的 RTSP 地址和重连等待时间"));
+        return;
+    }
+
+    stopVideoSource();
+    mVideoSource.reset(new RtspSource(mRtspConfiguration.reconnectIntervalMilliseconds()));
+    mVideoSourceType = QStringLiteral("rtsp");
+    appendVideoSourceEvent(QStringLiteral("准备连接：%1").arg(mRtspConfiguration.displayName()));
+
+    QString errorMessage;
+    if (!mVideoSource->open(mRtspConfiguration.url(), &errorMessage)) {
+        appendVideoSourceEvent(QStringLiteral("连接失败：%1").arg(errorMessage));
+        updateVideoSourceStatus();
+        writePerformanceSample(true);
+        QMessageBox::warning(this, QStringLiteral("连接 RTSP 失败"), errorMessage);
+        return;
+    }
+
+    mRecognitionInputActive = true;
+    timerid = startTimer(40);
+    appendVideoSourceEvent(QStringLiteral("已开始读取 RTSP 视频帧"));
+    updateVideoSourceStatus();
+    writePerformanceSample(true);
+}
+
+void FaceRecognitionWin::pauseRecognitionInput()
+{
     mRecognitionInputActive = false;
     mRecognitionRequestPending = false;
     ++mRecognitionRequestId;
@@ -540,6 +575,44 @@ void FaceRecognitionWin::stopVideoSource()
     mAttendanceStateMachine.reset();
     mLastRecognizedNumber.clear();
     resetCheckoutConfirmation();
+}
+
+void FaceRecognitionWin::handleVideoSourceReadState(VideoSourceState previousState,
+                                                    const QString &previousError)
+{
+    if (!mVideoSource) {
+        return;
+    }
+
+    const VideoSourceState currentState = mVideoSource->state();
+    const QString currentError = mVideoSource->lastError();
+    if (currentState != previousState || currentError != previousError) {
+        QString detail = currentError;
+        if (detail.isEmpty() && currentState == VideoSourceState::Playing) {
+            detail = QStringLiteral("视频输入已恢复：%1").arg(mVideoSource->displayName());
+        }
+        appendVideoSourceEvent(detail);
+    }
+
+    if ((currentState == VideoSourceState::Interrupted
+         || currentState == VideoSourceState::Reconnecting)
+            && currentState != previousState) {
+        pauseRecognitionInput();
+        updateAttendanceStatus(QStringLiteral("视频输入中断，等待恢复"));
+    } else if (currentState == VideoSourceState::Playing
+               && (previousState == VideoSourceState::Interrupted
+                   || previousState == VideoSourceState::Reconnecting)) {
+        mRecognitionInputActive = true;
+        updateAttendanceStatus(QStringLiteral("视频输入已恢复，继续识别"));
+    }
+}
+
+void FaceRecognitionWin::stopVideoSource()
+{
+    const bool hadActiveSource = mVideoSource
+            && mVideoSource->state() != VideoSourceState::Closed
+            && mVideoSource->state() != VideoSourceState::Stopped;
+    pauseRecognitionInput();
     if (timerid != 0) {
         killTimer(timerid);
         timerid = 0;
@@ -570,6 +643,7 @@ void FaceRecognitionWin::updateVideoSourceStatus()
 
     QString status = QStringLiteral("视频状态：%1").arg(IVideoSource::stateText(mVideoSource->state()));
     if ((mVideoSource->state() == VideoSourceState::Error
+         || mVideoSource->state() == VideoSourceState::Interrupted
          || mVideoSource->state() == VideoSourceState::Reconnecting)
             && !mVideoSource->lastError().isEmpty()) {
         status.append(QStringLiteral("（%1）").arg(mVideoSource->lastError()));
@@ -613,11 +687,16 @@ void FaceRecognitionWin::refreshVideoSourceEventView()
 void FaceRecognitionWin::updateMediaControls()
 {
     const bool isPlaying = mVideoSource && mVideoSource->state() == VideoSourceState::Playing;
-    const bool isReconnecting = mVideoSource
-            && mVideoSource->state() == VideoSourceState::Reconnecting;
-    const bool hasActiveSource = isPlaying || isReconnecting;
+    const bool hasActiveSource = mVideoSource
+            && IVideoSource::shouldKeepPolling(mVideoSource->state());
     ui->openVideoBt->setEnabled(!hasActiveSource);
     ui->openLocalCameraBt->setEnabled(!hasActiveSource);
+    if (mOpenRtspBt) {
+        mOpenRtspBt->setEnabled(!hasActiveSource && mRtspConfiguration.isConfigured());
+    }
+    if (mConfigureRtspBt) {
+        mConfigureRtspBt->setEnabled(!hasActiveSource);
+    }
     ui->stopVideoBt->setEnabled(hasActiveSource);
     if (mCheckoutBt) {
         mCheckoutBt->setEnabled(isPlaying && !mLastRecognizedNumber.isEmpty()

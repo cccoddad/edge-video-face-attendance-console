@@ -74,6 +74,16 @@ int main(int argc, char *argv[])
         std::fprintf(stderr, "RTSP interruption states have no visible text\n");
         return 5;
     }
+    if (!IVideoSource::shouldKeepPolling(VideoSourceState::Playing)
+            || !IVideoSource::shouldKeepPolling(VideoSourceState::Interrupted)
+            || !IVideoSource::shouldKeepPolling(VideoSourceState::Reconnecting)
+            || IVideoSource::shouldKeepPolling(VideoSourceState::Closed)
+            || IVideoSource::shouldKeepPolling(VideoSourceState::Ended)
+            || IVideoSource::shouldKeepPolling(VideoSourceState::Error)
+            || IVideoSource::shouldKeepPolling(VideoSourceState::Stopped)) {
+        std::fprintf(stderr, "Video source polling policy would stop RTSP recovery\n");
+        return 11;
+    }
 
     std::fprintf(stdout, "RTSP source test passed: configuration, validation and local states verified\n");
     return 0;
