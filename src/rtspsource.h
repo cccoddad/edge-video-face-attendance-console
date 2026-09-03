@@ -19,6 +19,12 @@ public:
 
     static bool isValidRtspUrl(const QString &location);
 
+protected:
+    virtual bool openCapture(const QString &location);
+    virtual bool readCapture(cv::Mat &frame);
+    virtual bool captureIsOpen() const;
+    virtual void releaseCapture();
+
 private:
     bool connectToStream(bool reconnecting, QString *errorMessage = nullptr);
     void setInterrupted(const QString &message);

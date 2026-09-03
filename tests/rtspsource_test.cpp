@@ -7,6 +7,56 @@
 
 #include <cstdio>
 
+class FakeRtspSource : public RtspSource
+{
+public:
+    explicit FakeRtspSource(const QList<bool> &openResults, const QList<bool> &readResults)
+        : RtspSource(0)
+        , m_openResults(openResults)
+        , m_readResults(readResults)
+    {
+    }
+
+protected:
+    bool openCapture(const QString &) override
+    {
+        return takeResult(m_openResults, m_openIndex);
+    }
+
+    bool readCapture(cv::Mat &frame) override
+    {
+        if (!takeResult(m_readResults, m_readIndex)) {
+            return false;
+        }
+        frame = cv::Mat::ones(2, 2, CV_8UC3);
+        return true;
+    }
+
+    bool captureIsOpen() const override
+    {
+        return m_isOpen;
+    }
+
+    void releaseCapture() override
+    {
+        m_isOpen = false;
+    }
+
+private:
+    bool takeResult(const QList<bool> &results, int &index)
+    {
+        const bool result = index < results.size() && results.at(index++);
+        m_isOpen = result;
+        return result;
+    }
+
+    QList<bool> m_openResults;
+    QList<bool> m_readResults;
+    int m_openIndex{0};
+    int m_readIndex{0};
+    bool m_isOpen{false};
+};
+
 int main(int argc, char *argv[])
 {
     QCoreApplication application(argc, argv);
@@ -83,6 +133,35 @@ int main(int argc, char *argv[])
             || IVideoSource::shouldKeepPolling(VideoSourceState::Stopped)) {
         std::fprintf(stderr, "Video source polling policy would stop RTSP recovery\n");
         return 11;
+    }
+    FakeRtspSource recoveringSource(QList<bool>() << true << false << true,
+                                    QList<bool>() << true << false << true);
+    if (!recoveringSource.open(QStringLiteral("rtsp://example.invalid:8554/live"))
+            || recoveringSource.state() != VideoSourceState::Playing) {
+        std::fprintf(stderr, "Fake RTSP source did not enter the playing state\n");
+        return 12;
+    }
+    cv::Mat frame;
+    if (!recoveringSource.read(frame) || frame.empty()) {
+        std::fprintf(stderr, "Fake RTSP source did not read the initial frame\n");
+        return 13;
+    }
+    if (recoveringSource.read(frame)
+            || recoveringSource.state() != VideoSourceState::Interrupted
+            || recoveringSource.lastError().isEmpty()) {
+        std::fprintf(stderr, "RTSP read interruption did not enter the recoverable state\n");
+        return 14;
+    }
+    if (recoveringSource.read(frame)
+            || recoveringSource.state() != VideoSourceState::Interrupted) {
+        std::fprintf(stderr, "RTSP reconnect failure did not remain recoverable\n");
+        return 15;
+    }
+    if (!recoveringSource.read(frame)
+            || recoveringSource.state() != VideoSourceState::Playing
+            || frame.empty()) {
+        std::fprintf(stderr, "RTSP reconnect did not recover the next frame\n");
+        return 16;
     }
 
     std::fprintf(stdout, "RTSP source test passed: configuration, validation and local states verified\n");

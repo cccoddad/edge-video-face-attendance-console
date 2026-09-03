@@ -9,7 +9,7 @@ RtspSource::RtspSource(int reconnectIntervalMilliseconds)
 
 RtspSource::~RtspSource()
 {
-    m_capture.release();
+    releaseCapture();
 }
 
 bool RtspSource::open(const QString &location, QString *errorMessage)
@@ -43,7 +43,7 @@ bool RtspSource::read(cv::Mat &frame)
     if (m_state != VideoSourceState::Playing) {
         return false;
     }
-    if (m_capture.read(frame) && !frame.empty()) {
+    if (readCapture(frame) && !frame.empty()) {
         return true;
     }
 
@@ -53,9 +53,9 @@ bool RtspSource::read(cv::Mat &frame)
 
 void RtspSource::close()
 {
-    const bool wasActive = m_capture.isOpened() || m_state == VideoSourceState::Playing
+    const bool wasActive = captureIsOpen() || m_state == VideoSourceState::Playing
             || m_state == VideoSourceState::Interrupted || m_state == VideoSourceState::Reconnecting;
-    m_capture.release();
+    releaseCapture();
     mReconnectScheduler.clear();
     if (wasActive) {
         m_state = VideoSourceState::Stopped;
@@ -82,11 +82,31 @@ bool RtspSource::isValidRtspUrl(const QString &location)
     return RtspConfiguration::isValidUrl(location);
 }
 
-bool RtspSource::connectToStream(bool reconnecting, QString *errorMessage)
+bool RtspSource::openCapture(const QString &location)
+{
+    return m_capture.open(location.toUtf8().constData(), cv::CAP_FFMPEG);
+}
+
+bool RtspSource::readCapture(cv::Mat &frame)
+{
+    return m_capture.read(frame);
+}
+
+bool RtspSource::captureIsOpen() const
+{
+    return m_capture.isOpened();
+}
+
+void RtspSource::releaseCapture()
 {
     m_capture.release();
+}
+
+bool RtspSource::connectToStream(bool reconnecting, QString *errorMessage)
+{
+    releaseCapture();
     m_state = reconnecting ? VideoSourceState::Reconnecting : VideoSourceState::Opening;
-    if (m_capture.open(m_location.toUtf8().constData(), cv::CAP_FFMPEG)) {
+    if (openCapture(m_location)) {
         m_state = VideoSourceState::Playing;
         m_lastError.clear();
         return true;
@@ -109,7 +129,7 @@ bool RtspSource::connectToStream(bool reconnecting, QString *errorMessage)
 
 void RtspSource::setInterrupted(const QString &message)
 {
-    m_capture.release();
+    releaseCapture();
     m_state = VideoSourceState::Interrupted;
     m_lastError = message;
     mReconnectScheduler.schedule(QDateTime::currentDateTime());
