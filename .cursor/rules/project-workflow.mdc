@@ -1,0 +1,17 @@
+---
+description: Enforce the shared development, validation, and Git workflow for this project.
+alwaysApply: true
+---
+
+# Shared Project Workflow
+
+- Work only inside this repository. Before changes, inspect Git status and read the README, document index, implementation record, relevant tests, and `AGENTS.md`.
+- Preserve existing worktree changes. Never reset, discard, overwrite, delete, or reformat unrelated work.
+- Keep changes scoped to the task and follow the current Qt5/qmake/OpenCV/SeetaFace architecture. Do not introduce Qt6, CMake, or another face SDK without explicit approval.
+- Explain intended changes before editing. Build, test, or run appropriate verification after changes; clearly label anything not verified or not yet implemented.
+- After every completed thought, inspection, edit, build, test, or Git action, respond in Chinese with: what was done, why, actual evidence/result, and a one-sentence plain-language explanation of relevant technical terms. State "未验证" plainly when applicable.
+- Before committing, inspect diffs and staged files. Never commit secrets, tokens, personal photos, models, DLLs, SQLite files, logs, local videos, build/dist outputs, or machine-local dependency configuration.
+- Commit only a coherent, validated feature unit. For each verified closure, run `git diff`, `git diff --check`, and `git status`, then commit and push `origin/main`. Never force-push or alter another repository's Git settings. When a target source directory is not a Git repository, state that Git evidence is unavailable rather than inventing it.
+- Follow the RK3568 collaboration boundary rule. The 2026-09-04 explicit user authorization permits work on the designated gateway source to repair MPP H.264 and later add a read-only RTSP output; preserve existing deployments and artifacts, use uniquely named test evidence, and do not claim an unverified RTSP implementation is complete.
+- When user action is required, provide the terminal location, one complete pasteable command block, prerequisites, expected result, and exact failure output/screenshot to return.
+- At the end of a stage, report changed files, verification, remaining risk, Git state, and the next recommended step.
