@@ -21,6 +21,7 @@ namespace Ui { class FaceRecognitionWin; }
 QT_END_NAMESPACE
 class QPushButton;
 class QPlainTextEdit;
+class VideoSourceWorker;
 
 class FaceRecognitionWin : public QMainWindow
 {
@@ -28,7 +29,6 @@ class FaceRecognitionWin : public QMainWindow
 public:
     FaceRecognitionWin(QWidget *parent = nullptr);
     ~FaceRecognitionWin();
-    virtual void timerEvent(QTimerEvent *e);
 
 private slots:
     void on_recognitionRb_clicked();
@@ -41,6 +41,11 @@ private slots:
     void on_stopVideoBt_clicked();
     void on_modeTabs_currentChanged(int index);
     void on_requestCheckout_clicked();
+    void handleSourceOpened(const QString &sourceType, const QString &displayName, int state);
+    void handleSourceOpenFailed(const QString &sourceType, const QString &errorMessage);
+    void handleFrame(const cv::Mat &frame);
+    void handleSourceStateChanged(int state, const QString &errorDetail);
+    void handleSourceReadFinished(int state);
 
 protected slots:
     void recvName(const QString &name);
@@ -54,6 +59,10 @@ signals:
     void sendTrackerCmd(const cv::Mat &faceMat, quint64 requestId);
     void sendQualityCmd(const cv::Mat &faceMat, const QRect &faceRect, quint64 requestId);
     void registrationPhotoCaptured(bool success, const QString &message);
+    void openFileSourceRequested(const QString &filePath, bool loopEnabled);
+    void openCameraSourceRequested(int cameraIndex);
+    void openRtspSourceRequested(const QString &url, int reconnectIntervalMilliseconds);
+    void stopSourceRequested();
 private:
     void setupModernLayout();
     void showRecognitionPage();
@@ -64,9 +73,8 @@ private:
     void openLocalCamera();
     void openRtsp();
     void stopVideoSource();
+    bool isVideoSourceActive() const;
     void pauseRecognitionInput();
-    void handleVideoSourceReadState(VideoSourceState previousState,
-                                    const QString &previousError);
     void updateVideoSourceStatus();
     void appendVideoSourceEvent(const QString &detail);
     void appendRuntimeEvent(const QString &sourceType, VideoSourceState state, const QString &detail);
@@ -85,9 +93,12 @@ private:
     void recordAttendanceWriteResult(AttendanceWriteStatus status);
     Ui::FaceRecognitionWin *ui;
     QWidget *win;
-    int timerid;
     cv::Mat videoImage;
-    std::unique_ptr<IVideoSource> mVideoSource;
+    VideoSourceWorker *mVideoSourceWorker;
+    QThread *mVideoSourceThread;
+    VideoSourceState mVideoSourceState;
+    QString mVideoSourceDisplayName;
+    QString mVideoSourceError;
     bool mRecognitionInputActive;
     bool mRecognitionRequestPending;
     quint64 mRecognitionRequestId;

@@ -83,7 +83,8 @@ SOURCES += \
     snapshotstore.cpp \
     theme.cpp \
     videosourceruntimelog.cpp \
-    videofilesource.cpp
+    videofilesource.cpp \
+    videosourceworker.cpp
 
 HEADERS += \
     appconfig.h \
@@ -107,7 +108,8 @@ HEADERS += \
     snapshotstore.h \
     theme.h \
     videosourceruntimelog.h \
-    videofilesource.h
+    videofilesource.h \
+    videosourceworker.h
 
 FORMS += \
     facerecognitionwin.ui \

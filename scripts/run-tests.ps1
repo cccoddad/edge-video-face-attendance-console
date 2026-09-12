@@ -52,8 +52,10 @@ Run-Test "PersonnelImportExportTest" "$testBase\PersonnelImportExportTest\releas
 $videoFixture = Join-Path $env:FACE_ATTENDANCE_DATA_DIR 'test-media\local-face-fixture.avi'
 if (Test-Path -LiteralPath $videoFixture) {
     Run-Test "VideoFileSourceSmokeTest" "$testBase\VideoFileSourceSmokeTest\release\VideoFileSourceSmokeTest.exe" @($videoFixture)
+    Run-Test "VideoSourceWorkerTest" "$testBase\VideoSourceWorkerTest\release\VideoSourceWorkerTest.exe" @($videoFixture)
 } else {
     Write-Host "SKIP  VideoFileSourceSmokeTest (fixture not found: $videoFixture)" -ForegroundColor Yellow
+    Write-Host "SKIP  VideoSourceWorkerTest (fixture not found: $videoFixture)" -ForegroundColor Yellow
 }
 
 Write-Host "`n========================================" -ForegroundColor White
