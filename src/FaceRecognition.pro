@@ -66,6 +66,7 @@ SOURCES += \
     attendancerepository.cpp \
     attendancestatemachine.cpp \
     checkoutconfirmation.cpp \
+    databasemigration.cpp \
     facequalitypolicy.cpp \
     ivideosource.cpp \
     localcamerasource.cpp \
@@ -89,6 +90,7 @@ HEADERS += \
     attendancerepository.h \
     attendancestatemachine.h \
     checkoutconfirmation.h \
+    databasemigration.h \
     facequalitypolicy.h \
     ivideosource.h \
     localcamerasource.h \

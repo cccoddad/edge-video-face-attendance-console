@@ -45,6 +45,8 @@ Run-Test "RtspSourceTest" "$testBase\RtspSourceTest\release\RtspSourceTest.exe" 
 Run-Test "LocalCameraSourceTest" "$testBase\LocalCameraSourceTest\release\LocalCameraSourceTest.exe" @()
 Run-Test "RtspConfigurationDialogTest" "$testBase\RtspConfigurationDialogTest\release\RtspConfigurationDialogTest.exe" @()
 Run-Test "FaceQualityAssessorTest" "$testBase\FaceQualityAssessorTest\release\FaceQualityAssessorTest.exe" @("$env:FACE_ATTENDANCE_MODEL_DIR")
+Run-Test "DatabaseMigrationTest" "$testBase\DatabaseMigrationTest\release\DatabaseMigrationTest.exe" @()
+Run-Test "AttendanceRepositoryTest" "$testBase\AttendanceRepositoryTest\release\AttendanceRepositoryTest.exe" @()
 
 $videoFixture = Join-Path $env:FACE_ATTENDANCE_DATA_DIR 'test-media\local-face-fixture.avi'
 if (Test-Path -LiteralPath $videoFixture) {

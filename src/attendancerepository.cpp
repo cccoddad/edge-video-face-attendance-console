@@ -1,37 +1,11 @@
 #include "attendancerepository.h"
+#include "databasemigration.h"
 
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
 
 namespace {
-bool ensureColumn(const QSqlDatabase &database, const QString &columnName,
-                  const QString &definition, QString *errorMessage)
-{
-    QSqlQuery query(database);
-    if (!query.exec("PRAGMA table_info(recorduser)")) {
-        if (errorMessage) {
-            *errorMessage = query.lastError().text();
-        }
-        return false;
-    }
-
-    while (query.next()) {
-        if (query.value(1).toString() == columnName) {
-            return true;
-        }
-    }
-
-    if (!query.exec(QString("ALTER TABLE recorduser ADD COLUMN %1 %2")
-                    .arg(columnName, definition))) {
-        if (errorMessage) {
-            *errorMessage = query.lastError().text();
-        }
-        return false;
-    }
-    return true;
-}
-
 QString eventKeyFor(const QString &number, const QDate &date, AttendanceEventType type)
 {
     return QString("%1:%2:%3:%4")
@@ -56,24 +30,7 @@ bool AttendanceRepository::ensureSchema(QString *errorMessage) const
         return false;
     }
 
-    if (!ensureColumn(m_database, "checktime", "TEXT", errorMessage)
-            || !ensureColumn(m_database, "event_type", "TEXT", errorMessage)
-            || !ensureColumn(m_database, "event_key", "TEXT", errorMessage)
-            || !ensureColumn(m_database, "similarity", "REAL", errorMessage)
-            || !ensureColumn(m_database, "source_type", "TEXT", errorMessage)
-            || !ensureColumn(m_database, "snapshot_path", "TEXT", errorMessage)) {
-        return false;
-    }
-
-    QSqlQuery query(m_database);
-    if (!query.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_recorduser_event_key "
-                    "ON recorduser(event_key) WHERE event_key IS NOT NULL")) {
-        if (errorMessage) {
-            *errorMessage = query.lastError().text();
-        }
-        return false;
-    }
-    return true;
+    return DatabaseMigration::migrate(m_database, errorMessage);
 }
 
 AttendanceWriteResult AttendanceRepository::record(const AttendanceConfirmation &confirmation,

@@ -10,6 +10,7 @@
 - SQLite 参数化写入与事务基础，避免连续帧重复考勤。
 - 连续帧确认、当天签到/签退状态与数据库幂等键，包含按人员的识别冷却。
 - 基于 SeetaFace QualityAssessor 的人脸质量门控：识别流程拦截亮度、尺寸和清晰度异常帧；注册流程额外要求姿态通过，避免低质量照片写入特征库。
+- 数据库 Schema 版本管理：`DatabaseMigration` 框架通过 `schema_version` 表追踪版本号，支持有序升级；`AttendanceRepository` 单元测试覆盖签到/签退/抑制/快照回填等核心数据路径。
 - `IVideoSource`、`VideoFileSource` 与 `LocalCameraSource` 本地媒体输入；可从 Qt 界面选择视频文件或打开 Windows 本机摄像头进行独立开发测试。
 - 考勤记录按工号、日期和签到/签退状态筛选，并将当前筛选结果导出为 UTF-8 CSV。
 - 签到或签退确认后保存 Windows 本地 JPEG 抓拍，并按可配置保留期清理过期图片。
