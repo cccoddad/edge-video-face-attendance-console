@@ -65,6 +65,7 @@ SOURCES += \
     attendancereport.cpp \
     attendancerepository.cpp \
     attendancestatemachine.cpp \
+    attendancewriter.cpp \
     checkoutconfirmation.cpp \
     databasemigration.cpp \
     facequalitypolicy.cpp \
@@ -91,6 +92,7 @@ HEADERS += \
     attendancereport.h \
     attendancerepository.h \
     attendancestatemachine.h \
+    attendancewriter.h \
     checkoutconfirmation.h \
     databasemigration.h \
     facequalitypolicy.h \

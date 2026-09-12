@@ -3,6 +3,7 @@
 
 #include "attendancestatemachine.h"
 
+#include <QMetaType>
 #include <QSqlDatabase>
 
 enum class AttendanceEventType
@@ -25,6 +26,7 @@ struct AttendanceWriteResult
     QString message;
     QString eventKey;
 };
+Q_DECLARE_METATYPE(AttendanceWriteResult)
 
 class AttendanceRepository
 {

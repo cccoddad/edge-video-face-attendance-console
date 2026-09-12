@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
     Theme::apply(&application);
     qRegisterMetaType<cv::Mat>("cv::Mat");
+    qRegisterMetaType<AttendanceConfirmation>("AttendanceConfirmation");
+    qRegisterMetaType<AttendanceWriteResult>("AttendanceWriteResult");
 
     QString modelError;
     if (!AppConfig::hasRequiredModels(&modelError)) {

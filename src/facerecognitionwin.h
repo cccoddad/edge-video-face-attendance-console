@@ -22,6 +22,7 @@ QT_END_NAMESPACE
 class QPushButton;
 class QPlainTextEdit;
 class VideoSourceWorker;
+class AttendanceWriter;
 
 class FaceRecognitionWin : public QMainWindow
 {
@@ -46,6 +47,9 @@ private slots:
     void handleFrame(const cv::Mat &frame);
     void handleSourceStateChanged(int state, const QString &errorDetail);
     void handleSourceReadFinished(int state);
+    void handleAttendanceWriteFinished(const AttendanceWriteResult &result,
+                                       const AttendanceConfirmation &confirmation,
+                                       quint64 requestId);
 
 protected slots:
     void recvName(const QString &name);
@@ -63,6 +67,12 @@ signals:
     void openCameraSourceRequested(int cameraIndex);
     void openRtspSourceRequested(const QString &url, int reconnectIntervalMilliseconds);
     void stopSourceRequested();
+    void recordRequested(const AttendanceConfirmation &confirmation,
+                         int minimumCheckoutIntervalSeconds, const QString &sourceType,
+                         const cv::Mat &snapshotFrame, quint64 requestId);
+    void checkOutRequested(const AttendanceConfirmation &confirmation,
+                           const QString &sourceType, const cv::Mat &snapshotFrame,
+                           quint64 requestId);
 private:
     void setupModernLayout();
     void showRecognitionPage();
@@ -82,8 +92,6 @@ private:
     void updateMediaControls();
     void updateAttendanceStatus(const QString &message, bool failed = false);
     void updateFaceOverlay(QPixmap *pixmap, const QSize &sourceSize) const;
-    void finishAttendanceWrite(const AttendanceWriteResult &writeResult,
-                               const AttendanceConfirmation &confirmation);
     void resetCheckoutConfirmation(const QString &message = QString());
     void showUnknownPerson();
     void setRecognitionAvatar(const QString &photoPath);
@@ -129,7 +137,9 @@ private:
     QThread *mthread;
     AttendanceStateMachine mAttendanceStateMachine;
     CheckoutConfirmation mCheckoutConfirmation;
-    AttendanceRepository mAttendanceRepository;
+    AttendanceWriter *mAttendanceWriter;
+    QThread *mAttendanceThread;
+    quint64 mAttendanceWriteRequestId;
     QHash<QString, QDateTime> mLastAttendanceConfirmationByNumber;
     QString mLastRecognizedNumber;
     QString mVideoSourceType;

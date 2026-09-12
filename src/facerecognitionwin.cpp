@@ -2,6 +2,7 @@
 #include "qquerywidget.h"
 #include "qregisterwidget.h"
 #include "appconfig.h"
+#include "attendancewriter.h"
 #include "snapshotstore.h"
 #include "localcamerasource.h"
 #include "rtspconfigurationdialog.h"
@@ -56,7 +57,9 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mAttendanceFailed(0),
        mthread(new QThread(this)),
        mAttendanceStateMachine(AppConfig::recognitionConfirmationFrames()),
-       mAttendanceRepository(QSqlDatabase::database()),
+       mAttendanceWriter(new AttendanceWriter),
+       mAttendanceThread(new QThread(this)),
+       mAttendanceWriteRequestId(0),
        mVideoSourceType(QStringLiteral("video-file")),
        mRtspConfiguration(AppConfig::rtspUrl(), AppConfig::rtspReconnectIntervalMilliseconds()),
        mVideoSourceRuntimeLog(50),
@@ -129,6 +132,23 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     connect(mVideoSourceWorker, &VideoSourceWorker::sourceReadFinished, this,
             &FaceRecognitionWin::handleSourceReadFinished);
     mVideoSourceThread->start();
+    //考勤写入与抓拍运行在独立存储线程，使用独立 SQLite 连接
+    mAttendanceWriter->moveToThread(mAttendanceThread);
+    connect(mAttendanceThread, &QThread::finished, mAttendanceWriter, &QObject::deleteLater);
+    connect(this, &FaceRecognitionWin::recordRequested, mAttendanceWriter,
+            &AttendanceWriter::record, Qt::QueuedConnection);
+    connect(this, &FaceRecognitionWin::checkOutRequested, mAttendanceWriter,
+            &AttendanceWriter::recordCheckOut, Qt::QueuedConnection);
+    connect(mAttendanceWriter, &AttendanceWriter::ready, this,
+            [](bool success, const QString &errorMessage) {
+        if (!success) {
+            qWarning() << "attendance writer initialization failed:" << errorMessage;
+        }
+    });
+    connect(mAttendanceWriter, &AttendanceWriter::writeFinished, this,
+            &FaceRecognitionWin::handleAttendanceWriteFinished);
+    mAttendanceThread->start();
+    QMetaObject::invokeMethod(mAttendanceWriter, "initialize", Qt::QueuedConnection);
     initializePerformanceLog();
 
     const QString automaticVideoPath = AppConfig::automaticVideoPath();
@@ -352,10 +372,10 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
         checkoutConfirmation.number = number;
         checkoutConfirmation.similarity = similarty;
         checkoutConfirmation.timestamp = now;
-        const AttendanceWriteResult checkoutResult = mAttendanceRepository.recordCheckOut(
-                    checkoutConfirmation, mVideoSourceType);
         resetCheckoutConfirmation();
-        finishAttendanceWrite(checkoutResult, checkoutConfirmation);
+        updateAttendanceStatus(QStringLiteral("正在写入签退记录..."));
+        emit checkOutRequested(checkoutConfirmation, mVideoSourceType,
+                               mPendingRecognitionFrame, ++mAttendanceWriteRequestId);
         return;
     }
 
@@ -374,14 +394,16 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
         return;
     }
 
-    const AttendanceWriteResult writeResult = mAttendanceRepository.record(
-                confirmation, AppConfig::minimumCheckoutIntervalSeconds(), mVideoSourceType);
-    finishAttendanceWrite(writeResult, confirmation);
+    updateAttendanceStatus(QStringLiteral("正在写入考勤记录..."));
+    emit recordRequested(confirmation, AppConfig::minimumCheckoutIntervalSeconds(),
+                         mVideoSourceType, mPendingRecognitionFrame, ++mAttendanceWriteRequestId);
 }
 
-void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writeResult,
-                                               const AttendanceConfirmation &confirmation)
+void FaceRecognitionWin::handleAttendanceWriteFinished(const AttendanceWriteResult &writeResult,
+                                                       const AttendanceConfirmation &confirmation,
+                                                       quint64 requestId)
 {
+    Q_UNUSED(requestId);
     recordAttendanceWriteResult(writeResult.status);
     if (writeResult.status == AttendanceWriteStatus::Failed) {
         qWarning() << "attendance write failed:" << writeResult.message;
@@ -389,22 +411,7 @@ void FaceRecognitionWin::finishAttendanceWrite(const AttendanceWriteResult &writ
         return;
     }
     mLastAttendanceConfirmationByNumber.insert(confirmation.number, confirmation.timestamp);
-    QString statusMessage = writeResult.message;
-    if (writeResult.status == AttendanceWriteStatus::Inserted) {
-        QString snapshotPath;
-        QString snapshotError;
-        if (!SnapshotStore::save(mPendingRecognitionFrame, confirmation.number, confirmation.timestamp,
-                                 writeResult.eventKey, &snapshotPath, &snapshotError)) {
-            qWarning() << "attendance snapshot failed:" << snapshotError;
-            statusMessage.append(QStringLiteral("；抓拍保存失败"));
-        } else if (!mAttendanceRepository.updateSnapshotPath(writeResult.eventKey, snapshotPath,
-                                                              &snapshotError)) {
-            qWarning() << "attendance snapshot path update failed:" << snapshotError;
-            SnapshotStore::removeSnapshot(snapshotPath);
-            statusMessage.append(QStringLiteral("；抓拍关联失败"));
-        }
-    }
-    updateAttendanceStatus(statusMessage);
+    updateAttendanceStatus(writeResult.message);
 }
 
 void FaceRecognitionWin::handleFrame(const cv::Mat &frame)
@@ -445,6 +452,9 @@ FaceRecognitionWin::~FaceRecognitionWin()
     if (mVideoSourceWorker && mVideoSourceThread && mVideoSourceThread->isRunning()) {
         QMetaObject::invokeMethod(mVideoSourceWorker, "stop", Qt::BlockingQueuedConnection);
     }
+    if (mAttendanceWriter && mAttendanceThread && mAttendanceThread->isRunning()) {
+        QMetaObject::invokeMethod(mAttendanceWriter, "shutdown", Qt::BlockingQueuedConnection);
+    }
     mVideoSourceState = VideoSourceState::Stopped;
     mVideoSourceDisplayName.clear();
     mVideoSourceError.clear();
@@ -454,6 +464,8 @@ FaceRecognitionWin::~FaceRecognitionWin()
     mthread->wait(3000);
     mVideoSourceThread->quit();
     mVideoSourceThread->wait(3000);
+    mAttendanceThread->quit();
+    mAttendanceThread->wait(3000);
     delete ui;
 }
 

@@ -2,6 +2,7 @@
 #define ATTENDANCESTATEMACHINE_H
 
 #include <QDateTime>
+#include <QMetaType>
 #include <QString>
 
 struct AttendanceConfirmation
@@ -10,6 +11,7 @@ struct AttendanceConfirmation
     float similarity = 0.0f;
     QDateTime timestamp;
 };
+Q_DECLARE_METATYPE(AttendanceConfirmation)
 
 class AttendanceStateMachine
 {

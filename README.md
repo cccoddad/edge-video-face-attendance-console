@@ -14,6 +14,7 @@
 - 运行事件持久化日志：`VideoSourceRuntimeLog` 支持 `saveToFile`/`loadFromFile`，启动时自动加载上次会话日志，退出时写入 `runtime.log`，不再丢失运行现场。
 - 人员批量导入/导出：`PersonnelImportExport` 支持从 CSV 批量导入工号、姓名、部门（跳过已存在工号），并将人员名单导出为 UTF-8 CSV；跳过表头行自动识别。
 - 视频读取与 UI 线程分离：`VideoSourceWorker` 在工作线程中执行视频打开、轮询读取和关闭，UI 线程只接收帧与状态信号，不再阻塞在 OpenCV `read()` 调用上。
+- 考勤写入与抓拍异步化：`AttendanceWriter` 在独立存储线程中使用独立 SQLite 连接执行考勤写入、抓拍保存与路径回填，UI 线程只处理界面更新和识别决策。
 - `IVideoSource`、`VideoFileSource` 与 `LocalCameraSource` 本地媒体输入；可从 Qt 界面选择视频文件或打开 Windows 本机摄像头进行独立开发测试。
 - 考勤记录按工号、日期和签到/签退状态筛选，并将当前筛选结果导出为 UTF-8 CSV。
 - 签到或签退确认后保存 Windows 本地 JPEG 抓拍，并按可配置保留期清理过期图片。
