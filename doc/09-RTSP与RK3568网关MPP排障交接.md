@@ -3,6 +3,17 @@
 **记录日期**：2026-09-04
 **交接目的**：保留本轮 Windows Qt 人脸考勤控制台与经用户明确授权的 RK3568 网关排障事实，区分已验证、未验证和当前未完成源码状态。本文不包含网关源码、模型、个人照片、SQLite、日志或构建产物。
 
+> ## ⚠️ 2026-09-12 状态更新（必读，本文其余部分为 09-04 历史快照）
+>
+> 网关项目此后在独立工作区继续推进，以下为 2026-09-12 只读核查结论：
+>
+> 1. **编译与测试**：网关已可编译运行；最新工作区 `rkav-leakfix-20260912-174554` 在 Ubuntu 原生构建 **73/73 测试通过**（文档 70）。第 3 节记录的"未闭合语法错误"已解决，不再是当前状态。
+> 2. **RTSP 输出已实现并 PC 端到端验证**：FFmpeg RTSP muxer push（零代码改动可换目标服务器）、断连自动重连（`connection_lost → reconnected`）、`rtsp_transport` tcp/udp、`rtsp_timeout_ms` 超时守卫（中断回调）、会话资源收尾（文档 65/68/69/70/71）。
+> 3. **MPP 配置键拼写根因已定位并修复**（文档 67）；板端 MPP H.264 真实输出仍需板子上线后复核。
+> 4. **ZLMediaKit 流媒体服务层升级（阶段 1，PC）已完成**（文档 72/73）：网关推流至 ZLMediaKit；3 路客户端并发 RTSP 拉流（各 10 秒 H.264+AAC）、HTTP-FLV/RTMP/HLS 播放、ZLM 重启后网关重连恢复、服务器 CPU 5.6%/内存 8.5MB 均实测通过；WebRTC 插件与端口就绪，浏览器播放留待阶段 2；证据在本机 `D:\share\`。板端部署为阶段 2，排在板端 MPP/RGA 与 RTSP 验证之后。
+> 5. **板子当前离线**（VM `ping 192.168.50.2` 失败、`adb devices` 无设备），板端复核需先上电联网。
+> 6. **本 Qt 仓库侧**：RTSP 客户端解码后端方案已确定（独立 ffmpeg 子进程，ffmpeg 已部署到 `D:\qtdeps\ffmpeg`），`RtspSource` 子进程改造与验证进行中；详见 `04-项目升级实施方案.md` 第 6 节与 `01-项目实施记录与下一步.md` 第 2.29 节。
+
 ## 1. 范围和长期规则
 
 - Qt 仓库：`D:\vs-document\Real-Time Face Recognition Application Based on Qt and OpenCV`，分支 `main`，本记录落库后需推送 `origin/main`。
