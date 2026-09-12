@@ -25,7 +25,8 @@ win32 {
     LIBS += -L$$OPENCV_ROOT/x64/mingw/lib \
             -lopencv_core452 \
             -lopencv_imgproc452 \
-            -lopencv_imgcodecs452
+            -lopencv_imgcodecs452 \
+            -lopencv_videoio452
 
     LIBS += -L$$SEETAFACE_ROOT/lib \
             -lSeetaFaceDetector \
@@ -34,4 +35,9 @@ win32 {
             -lSeetaNet
 }
 
-SOURCES += facequalityassessor_test.cpp
+SOURCES += \
+    facequalityassessor_test.cpp \
+    ../src/facequalitypolicy.cpp
+
+HEADERS += \
+    ../src/facequalitypolicy.h

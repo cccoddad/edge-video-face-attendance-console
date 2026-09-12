@@ -10,16 +10,15 @@ $env:FACE_ATTENDANCE_DATA_DIR = Join-Path $repoRoot 'runtime-data'
 $passCount = 0
 $failCount = 0
 
-function Run-Test($name, $exePath, $args) {
-    $script:passCount; $script:failCount
+function Run-Test($name, $exePath, $testArgs) {
     if (!(Test-Path -LiteralPath $exePath)) {
         Write-Host "SKIP  $name (exe not found)" -ForegroundColor Yellow
         return
     }
     Write-Host "RUN   $name" -ForegroundColor Cyan -NoNewline
     try {
-        if ($args -and $args.Count -gt 0) {
-            $output = & $exePath @args 2>&1
+        if ($testArgs -and $testArgs.Count -gt 0) {
+            $output = & $exePath @testArgs 2>&1
         } else {
             $output = & $exePath 2>&1
         }
@@ -46,6 +45,13 @@ Run-Test "RtspSourceTest" "$testBase\RtspSourceTest\release\RtspSourceTest.exe" 
 Run-Test "LocalCameraSourceTest" "$testBase\LocalCameraSourceTest\release\LocalCameraSourceTest.exe" @()
 Run-Test "RtspConfigurationDialogTest" "$testBase\RtspConfigurationDialogTest\release\RtspConfigurationDialogTest.exe" @()
 Run-Test "FaceQualityAssessorTest" "$testBase\FaceQualityAssessorTest\release\FaceQualityAssessorTest.exe" @("$env:FACE_ATTENDANCE_MODEL_DIR")
+
+$videoFixture = Join-Path $env:FACE_ATTENDANCE_DATA_DIR 'test-media\local-face-fixture.avi'
+if (Test-Path -LiteralPath $videoFixture) {
+    Run-Test "VideoFileSourceSmokeTest" "$testBase\VideoFileSourceSmokeTest\release\VideoFileSourceSmokeTest.exe" @($videoFixture)
+} else {
+    Write-Host "SKIP  VideoFileSourceSmokeTest (fixture not found: $videoFixture)" -ForegroundColor Yellow
+}
 
 Write-Host "`n========================================" -ForegroundColor White
 Write-Host "Results: $passCount passed, $failCount failed" -ForegroundColor $(if ($failCount -eq 0) { "Green" } else { "Red" })

@@ -1,5 +1,6 @@
 #include "qfaceobject.h"
 #include "appconfig.h"
+#include "facequalitypolicy.h"
 
 #include <QDebug>
 #include <QFileInfo>
@@ -88,8 +89,34 @@ void QFaceObject::registerface(const cv::Mat &faceMat, quint64 requestId)
     seetaData.width = faceMat.cols;
     seetaData.height = faceMat.rows;
     seetaData.channels = faceMat.channels();
+
+    //注册前先确认照片中恰好有一张人脸
+    const std::vector<SeetaFaceInfo> faces = mfaceEngine->DetectFaces(seetaData);
+    if (faces.empty()) {
+        emit sendRegistrationResult(-1, requestId, QStringLiteral("注册照片未检测到人脸"));
+        return;
+    }
+    if (faces.size() > 1) {
+        emit sendRegistrationResult(-1, requestId,
+                                    QStringLiteral("注册照片检测到多张人脸，请确保画面中只有一人"));
+        return;
+    }
+
+    //注册前做人脸质量评估，避免把模糊、过暗或侧脸照片写入特征库
+    const SeetaFaceInfo &faceInfo = faces[0];
+    const std::vector<SeetaPointF> points = mfaceEngine->DetectPoints(seetaData, faceInfo);
+    float qualityScore = 0;
+    const int qualityCode = mQualityAssessor->evaluate(seetaData, faceInfo.pos, points.data(),
+                                                       qualityScore);
+    if (!FaceQualityPolicy::passesRegistration(qualityCode)) {
+        emit sendRegistrationResult(-1, requestId,
+                                    QStringLiteral("注册照片质量不达标：%1")
+                                    .arg(FaceQualityPolicy::failureText(qualityCode)));
+        return;
+    }
+
     //把人脸注册到人脸数据库中
-    int faceid = mfaceEngine->Register(seetaData);
+    int faceid = mfaceEngine->Register(seetaData, faceInfo);
     if (faceid < 0 || !mfaceEngine->Save(AppConfig::faceDatabasePath().toUtf8().constData())) {
         if (faceid >= 0) {
             mfaceEngine->Delete(faceid);
@@ -154,23 +181,11 @@ void QFaceObject::evaluateQuality(const cv::Mat &faceMat, const QRect &faceRect,
     float score = 0;
     int code = mQualityAssessor->evaluate(seetaData, faceRegion, points, score);
 
-    if (code == seeta::v2::QualityAssessor::ERROR_OK) {
+    //识别流程只拦截亮度、尺寸和清晰度问题；姿态告警交由识别模型自行处理
+    if (FaceQualityPolicy::passesRecognition(code)) {
         emit sendQualityResult(true, score, QString(), requestId);
         return;
     }
 
-    QStringList failures;
-    if (code & seeta::v2::QualityAssessor::ERROR_LIGHTNESS) {
-        failures.append(QStringLiteral("亮度异常"));
-    }
-    if (code & seeta::v2::QualityAssessor::ERROR_FACE_SIZE) {
-        failures.append(QStringLiteral("人脸过小"));
-    }
-    if (code & seeta::v2::QualityAssessor::ERROR_FACE_POSE) {
-        failures.append(QStringLiteral("姿态偏转"));
-    }
-    if (code & seeta::v2::QualityAssessor::ERROR_CLARITY) {
-        failures.append(QStringLiteral("清晰度不足"));
-    }
-    emit sendQualityResult(false, score, failures.join(QStringLiteral("、")), requestId);
+    emit sendQualityResult(false, score, FaceQualityPolicy::failureText(code), requestId);
 }
