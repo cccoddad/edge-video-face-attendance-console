@@ -22,6 +22,10 @@ public:
     void record(const QString &sourceType, VideoSourceState state, const QString &detail = QString(),
                 const QDateTime &occurredAt = QDateTime::currentDateTime());
     QList<VideoSourceRuntimeEvent> events() const;
+    void clear();
+
+    bool saveToFile(const QString &filePath, QString *errorMessage = nullptr) const;
+    bool loadFromFile(const QString &filePath, QString *errorMessage = nullptr);
 
     static QString sourceTypeText(const QString &sourceType);
     static QString formatEvent(const VideoSourceRuntimeEvent &event);

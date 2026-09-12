@@ -153,6 +153,12 @@ float AppConfig::faceQualityThreshold()
     return ok && value >= 0.0f && value <= 1.0f ? value : 0.30f;
 }
 
+QString AppConfig::runtimeLogPath()
+{
+    const QString value = qEnvironmentVariable("FACE_ATTENDANCE_RUNTIME_LOG_PATH").trimmed();
+    return value.isEmpty() ? QDir(dataDirectory()).filePath("runtime.log") : value;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

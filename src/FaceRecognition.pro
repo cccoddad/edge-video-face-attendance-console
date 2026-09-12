@@ -68,6 +68,7 @@ SOURCES += \
     checkoutconfirmation.cpp \
     databasemigration.cpp \
     facequalitypolicy.cpp \
+    personnelimportexport.cpp \
     ivideosource.cpp \
     localcamerasource.cpp \
     main.cpp \
@@ -92,6 +93,7 @@ HEADERS += \
     checkoutconfirmation.h \
     databasemigration.h \
     facequalitypolicy.h \
+    personnelimportexport.h \
     ivideosource.h \
     localcamerasource.h \
     facerecognitionwin.h \

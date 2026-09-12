@@ -1,5 +1,10 @@
 #include "videosourceruntimelog.h"
 
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
+
 VideoSourceRuntimeLog::VideoSourceRuntimeLog(int maximumEventCount)
     : mMaximumEventCount(qMax(1, maximumEventCount))
 {
@@ -50,4 +55,77 @@ QString VideoSourceRuntimeLog::formatEvent(const VideoSourceRuntimeEvent &event)
         text.append(QStringLiteral("：%1").arg(event.detail));
     }
     return text;
+}
+
+void VideoSourceRuntimeLog::clear()
+{
+    mEvents.clear();
+}
+
+bool VideoSourceRuntimeLog::saveToFile(const QString &filePath, QString *errorMessage) const
+{
+    if (filePath.isEmpty()) {
+        return true;
+    }
+    const QFileInfo fileInfo(filePath);
+    QDir().mkpath(fileInfo.absolutePath());
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        if (errorMessage) {
+            *errorMessage = file.errorString();
+        }
+        return false;
+    }
+    QTextStream stream(&file);
+    stream.setCodec("UTF-8");
+    for (const VideoSourceRuntimeEvent &event : mEvents) {
+        stream << event.occurredAt.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss"))
+               << QStringLiteral("|")
+               << event.sourceType
+               << QStringLiteral("|")
+               << static_cast<int>(event.state)
+               << QStringLiteral("|")
+               << event.detail
+               << QStringLiteral("\n");
+    }
+    return true;
+}
+
+bool VideoSourceRuntimeLog::loadFromFile(const QString &filePath, QString *errorMessage)
+{
+    if (filePath.isEmpty() || !QFileInfo::exists(filePath)) {
+        return true;
+    }
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (errorMessage) {
+            *errorMessage = file.errorString();
+        }
+        return false;
+    }
+    mEvents.clear();
+    QTextStream stream(&file);
+    stream.setCodec("UTF-8");
+    while (!stream.atEnd()) {
+        const QString line = stream.readLine().trimmed();
+        if (line.isEmpty()) {
+            continue;
+        }
+        const QStringList parts = line.split(QLatin1Char('|'));
+        if (parts.size() < 3) {
+            continue;
+        }
+        VideoSourceRuntimeEvent event;
+        event.occurredAt = QDateTime::fromString(parts[0], QStringLiteral("yyyy-MM-dd hh:mm:ss"));
+        event.sourceType = parts[1];
+        event.state = static_cast<VideoSourceState>(parts[2].toInt());
+        event.detail = parts.size() > 3 ? parts[3] : QString();
+        if (event.occurredAt.isValid()) {
+            mEvents.append(event);
+        }
+    }
+    while (mEvents.size() > mMaximumEventCount) {
+        mEvents.removeFirst();
+    }
+    return true;
 }

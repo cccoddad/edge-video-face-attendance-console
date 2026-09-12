@@ -28,6 +28,7 @@ public:
     static QString performanceLogPath();
     static int performanceLogIntervalMilliseconds();
     static float faceQualityThreshold();
+    static QString runtimeLogPath();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

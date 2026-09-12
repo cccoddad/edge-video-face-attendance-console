@@ -69,6 +69,15 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
 {
     ui->setupUi(this);
     setupModernLayout();
+    {
+        QString logError;
+        if (mVideoSourceRuntimeLog.loadFromFile(AppConfig::runtimeLogPath(), &logError)) {
+            refreshVideoSourceEventView();
+        }
+    }
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        mVideoSourceRuntimeLog.saveToFile(AppConfig::runtimeLogPath());
+    });
     ui->videoLb->setAlignment(Qt::AlignCenter);
     ui->videoLb->setText(QStringLiteral("请选择本地视频文件"));
     ui->RnumberLb->setText(QStringLiteral("--"));
