@@ -45,12 +45,14 @@ private slots:
 protected slots:
     void recvName(const QString &name);
     void recvTrackerResult(bool hasSingleFace, const QRect &faceRect, quint64 requestId);
+    void recvQualityResult(bool passed, float score, const QString &detail, quint64 requestId);
     //接收查询结果
     void recvQueryResult(int index, float similarty, quint64 requestId);
 signals:
     //发送图片给，给到人脸识别对象，（线程来查询-识别）
     void sendQueryCmd(const cv::Mat &faceMat, quint64 requestId);
     void sendTrackerCmd(const cv::Mat &faceMat, quint64 requestId);
+    void sendQualityCmd(const cv::Mat &faceMat, const QRect &faceRect, quint64 requestId);
     void registrationPhotoCaptured(bool success, const QString &message);
 private:
     void setupModernLayout();
@@ -93,6 +95,8 @@ private:
     bool mTrackerRequestPending;
     quint64 mTrackerRequestId;
     cv::Mat mPendingTrackerFrame;
+    bool mQualityRequestPending;
+    quint64 mQualityRequestId;
     QRect mTrackedFaceRect;
     QString mTrackedFaceLabel;
     QElapsedTimer mRecognitionDispatchTimer;

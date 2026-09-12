@@ -9,6 +9,7 @@
 #include <FaceDetector.h>
 #include <FaceDatabase.h>
 #include <FaceLandmarker.h>
+#include <QualityAssessor.h>
 #include <Struct.h>
 #include <opencv.hpp>
 
@@ -33,14 +34,20 @@ public slots:
     void deleteface(int faceid);
     //跟踪--当前帧恰好检测到一张人脸时返回 true，供连续帧确认逻辑使用
     void trackerface(const cv::Mat &faceMat, quint64 requestId);
+    //评估人脸质量（亮度/尺寸/姿态/清晰度），返回质量分数
+    void evaluateQuality(const cv::Mat &faceMat, const QRect &faceRect, quint64 requestId);
 signals:
     //当查询到人脸的时候把人脸id和相似度发送出来
     void sendQueryResult(int index, float similarity, quint64 requestId);
     void sendRegistrationResult(int faceid, quint64 requestId, const QString &errorMessage);
     void sendTrackerResult(bool hasSingleFace, const QRect &faceRect, quint64 requestId);
+    //人脸质量评估结果：passed=true 表示质量达标
+    void sendQualityResult(bool passed, float score, const QString &detail, quint64 requestId);
 protected:
     FaceEngine  *mfaceEngine;
     FaceTracker *mfaceTracker;
+    seeta::v2::FaceLandmarker *mfaceLandmarker;
+    seeta::v2::QualityAssessor *mQualityAssessor;
 };
 
 #endif // QFACEOBJECT_H

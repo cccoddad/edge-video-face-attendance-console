@@ -27,6 +27,7 @@ public:
     static bool automaticLocalCameraEnabled();
     static QString performanceLogPath();
     static int performanceLogIntervalMilliseconds();
+    static float faceQualityThreshold();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 

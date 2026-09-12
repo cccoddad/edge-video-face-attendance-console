@@ -19,10 +19,14 @@ QFaceObject::QFaceObject(QObject *parent) : QObject(parent)
        qWarning() << "load face database error:" << faceDatabasePath;
     }
     mfaceTracker = new FaceTracker(FDSetting);
+    mfaceLandmarker = new seeta::v2::FaceLandmarker(FLMSetting);
+    mQualityAssessor = new seeta::v2::QualityAssessor();
 }
 
 QFaceObject::~QFaceObject()
 {
+    delete mQualityAssessor;
+    delete mfaceLandmarker;
     delete mfaceEngine;
     delete mfaceTracker;
 }
@@ -122,4 +126,51 @@ void QFaceObject::trackerface(const cv::Mat &faceMat, quint64 requestId)
         faceRect = QRect(position.x, position.y, position.width, position.height);
     }
     emit sendTrackerResult(faceArray.size == 1, faceRect, requestId);
+}
+
+void QFaceObject::evaluateQuality(const cv::Mat &faceMat, const QRect &faceRect, quint64 requestId)
+{
+    if (faceMat.empty() || faceRect.isEmpty()) {
+        emit sendQualityResult(false, 0.0f, QStringLiteral("无人脸"), requestId);
+        return;
+    }
+
+    SeetaImageData seetaData;
+    seetaData.data = faceMat.data;
+    seetaData.width = faceMat.cols;
+    seetaData.height = faceMat.rows;
+    seetaData.channels = faceMat.channels();
+
+    SeetaRect faceRegion;
+    faceRegion.x = faceRect.x();
+    faceRegion.y = faceRect.y();
+    faceRegion.width = faceRect.width();
+    faceRegion.height = faceRect.height();
+
+    seeta::v2::FaceLandmarker *landmarker = mfaceLandmarker;
+    SeetaPointF points[5];
+    landmarker->mark(seetaData, faceRegion, points);
+
+    float score = 0;
+    int code = mQualityAssessor->evaluate(seetaData, faceRegion, points, score);
+
+    if (code == seeta::v2::QualityAssessor::ERROR_OK) {
+        emit sendQualityResult(true, score, QString(), requestId);
+        return;
+    }
+
+    QStringList failures;
+    if (code & seeta::v2::QualityAssessor::ERROR_LIGHTNESS) {
+        failures.append(QStringLiteral("亮度异常"));
+    }
+    if (code & seeta::v2::QualityAssessor::ERROR_FACE_SIZE) {
+        failures.append(QStringLiteral("人脸过小"));
+    }
+    if (code & seeta::v2::QualityAssessor::ERROR_FACE_POSE) {
+        failures.append(QStringLiteral("姿态偏转"));
+    }
+    if (code & seeta::v2::QualityAssessor::ERROR_CLARITY) {
+        failures.append(QStringLiteral("清晰度不足"));
+    }
+    emit sendQualityResult(false, score, failures.join(QStringLiteral("、")), requestId);
 }

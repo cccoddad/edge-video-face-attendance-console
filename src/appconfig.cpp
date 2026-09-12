@@ -146,6 +146,13 @@ int AppConfig::performanceLogIntervalMilliseconds()
     return ok && value >= 1000 && value <= 60000 ? value : 5000;
 }
 
+float AppConfig::faceQualityThreshold()
+{
+    bool ok = false;
+    const float value = qEnvironmentVariable("FACE_ATTENDANCE_QUALITY_THRESHOLD").toFloat(&ok);
+    return ok && value >= 0.0f && value <= 1.0f ? value : 0.30f;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

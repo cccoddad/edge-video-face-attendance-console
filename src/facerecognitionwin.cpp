@@ -41,6 +41,8 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mRecognitionRequestId(0),
        mTrackerRequestPending(false),
        mTrackerRequestId(0),
+       mQualityRequestPending(false),
+       mQualityRequestId(0),
        mLastPerformanceSampleMilliseconds(0),
        mFramesRead(0),
        mRecognitionRequests(0),
@@ -90,6 +92,10 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
     connect(&mfaceObject,&QFaceObject::sendQueryResult,this, &FaceRecognitionWin::recvQueryResult);
     connect(&mfaceObject, &QFaceObject::sendTrackerResult, this,
             &FaceRecognitionWin::recvTrackerResult);
+    connect(this, &FaceRecognitionWin::sendQualityCmd, &mfaceObject, &QFaceObject::evaluateQuality,
+            Qt::QueuedConnection);
+    connect(&mfaceObject, &QFaceObject::sendQualityResult, this,
+            &FaceRecognitionWin::recvQualityResult);
     initializePerformanceLog();
 
     const QString automaticVideoPath = AppConfig::automaticVideoPath();
@@ -570,6 +576,8 @@ void FaceRecognitionWin::pauseRecognitionInput()
     mTrackerRequestPending = false;
     ++mTrackerRequestId;
     mPendingTrackerFrame.release();
+    mQualityRequestPending = false;
+    ++mQualityRequestId;
     mTrackedFaceRect = QRect();
     mTrackedFaceLabel.clear();
     mAttendanceStateMachine.reset();
@@ -845,6 +853,29 @@ void FaceRecognitionWin::recvTrackerResult(bool hasSingleFace, const QRect &face
     if (mTrackedFaceLabel.isEmpty()) {
         mTrackedFaceLabel = QStringLiteral("正在识别");
     }
+    if (mQualityRequestPending || mPendingTrackerFrame.empty()) {
+        return;
+    }
+
+    mQualityRequestPending = true;
+    ++mQualityRequestId;
+    emit sendQualityCmd(mPendingTrackerFrame, faceRect, mQualityRequestId);
+}
+
+void FaceRecognitionWin::recvQualityResult(bool passed, float /*score*/, const QString &detail, quint64 requestId)
+{
+    if (!mRecognitionInputActive || requestId != mQualityRequestId) {
+        return;
+    }
+    mQualityRequestPending = false;
+
+    if (!passed) {
+        mAttendanceStateMachine.reset();
+        resetCheckoutConfirmation(QStringLiteral("签退确认已中断：人脸质量不达标"));
+        updateAttendanceStatus(QStringLiteral("人脸质量：%1").arg(detail));
+        return;
+    }
+
     if (mRecognitionRequestPending || mPendingTrackerFrame.empty()) {
         return;
     }
