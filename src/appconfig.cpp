@@ -159,6 +159,25 @@ QString AppConfig::runtimeLogPath()
     return value.isEmpty() ? QDir(dataDirectory()).filePath("runtime.log") : value;
 }
 
+QString AppConfig::ffmpegPath()
+{
+    const QString configured = qEnvironmentVariable("FACE_ATTENDANCE_FFMPEG_PATH").trimmed();
+    if (!configured.isEmpty()) {
+        return configured;
+    }
+    const QString local = QDir(QCoreApplication::applicationDirPath()).filePath("ffmpeg.exe");
+    if (QFileInfo::exists(local)) {
+        return local;
+    }
+    return QStringLiteral("ffmpeg");
+}
+
+bool AppConfig::automaticRtspEnabled()
+{
+    const QString value = qEnvironmentVariable("FACE_ATTENDANCE_AUTO_OPEN_RTSP").trimmed();
+    return value == QStringLiteral("1") || value.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
+}
+
 bool AppConfig::hasRequiredModels(QString *errorMessage)
 {
     const QStringList requiredModels = {

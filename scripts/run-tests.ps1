@@ -59,6 +59,14 @@ if (Test-Path -LiteralPath $videoFixture) {
     Write-Host "SKIP  VideoSourceWorkerTest (fixture not found: $videoFixture)" -ForegroundColor Yellow
 }
 
+$mediamtxExe = 'D:\qtdeps\mediamtx\mediamtx.exe'
+$ffmpegExe = 'D:\qtdeps\ffmpeg\bin\ffmpeg.exe'
+if ((Test-Path -LiteralPath $videoFixture) -and (Test-Path -LiteralPath $mediamtxExe) -and (Test-Path -LiteralPath $ffmpegExe)) {
+    Run-Test "RtspSourceLoopbackTest" "$testBase\RtspSourceLoopbackTest\release\RtspSourceLoopbackTest.exe" @($videoFixture, $mediamtxExe, $ffmpegExe)
+} else {
+    Write-Host "SKIP  RtspSourceLoopbackTest (fixture/mediamtx/ffmpeg not found)" -ForegroundColor Yellow
+}
+
 Write-Host "`n========================================" -ForegroundColor White
 Write-Host "Results: $passCount passed, $failCount failed" -ForegroundColor $(if ($failCount -eq 0) { "Green" } else { "Red" })
 Write-Host "========================================" -ForegroundColor White

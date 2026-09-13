@@ -160,6 +160,10 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
         QTimer::singleShot(0, this, [this]() {
             openLocalCamera();
         });
+    } else if (AppConfig::automaticRtspEnabled() && mRtspConfiguration.isConfigured()) {
+        QTimer::singleShot(0, this, [this]() {
+            openRtsp();
+        });
     }
 }
 

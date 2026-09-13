@@ -4,6 +4,11 @@
 #include "ivideosource.h"
 #include "rtspreconnectscheduler.h"
 
+#include <QByteArray>
+#include <QString>
+
+class QProcess;
+
 class RtspSource : public IVideoSource
 {
 public:
@@ -29,11 +34,14 @@ private:
     bool connectToStream(bool reconnecting, QString *errorMessage = nullptr);
     void setInterrupted(const QString &message);
 
-    cv::VideoCapture m_capture;
+    QProcess *m_process;
+    QByteArray m_frameBuffer;
+    QByteArray m_processLog;
     QString m_location;
     QString m_lastError;
     VideoSourceState m_state;
     RtspReconnectScheduler mReconnectScheduler;
+    qint64 m_lastActivityMsecs;
 };
 
 #endif // RTSPSOURCE_H

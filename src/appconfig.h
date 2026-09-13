@@ -29,6 +29,8 @@ public:
     static int performanceLogIntervalMilliseconds();
     static float faceQualityThreshold();
     static QString runtimeLogPath();
+    static QString ffmpegPath();
+    static bool automaticRtspEnabled();
     static bool hasRequiredModels(QString *errorMessage = nullptr);
 };
 
