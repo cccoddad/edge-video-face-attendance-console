@@ -1,4 +1,4 @@
-#include "../src/personnelimportexport.h"
+#include "../src/storage/personnelimportexport.h"
 
 #include <QCoreApplication>
 #include <QFile>

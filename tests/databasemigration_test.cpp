@@ -1,4 +1,4 @@
-#include "../src/databasemigration.h"
+#include "../src/storage/databasemigration.h"
 
 #include <QCoreApplication>
 #include <QSqlDatabase>

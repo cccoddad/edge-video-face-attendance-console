@@ -8,7 +8,7 @@
 #include <FaceLandmarker.h>
 #include <FaceDetector.h>
 #include <Struct.h>
-#include "../src/facequalitypolicy.h"
+#include "../src/vision/facequalitypolicy.h"
 
 static std::string g_modelRoot;
 static int g_failures = 0;

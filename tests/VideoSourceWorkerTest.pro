@@ -21,21 +21,32 @@ win32 {
             -lopencv_videoio452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     videosourceworker_test.cpp \
-    ../src/videosourceworker.cpp \
-    ../src/ivideosource.cpp \
-    ../src/videofilesource.cpp \
-    ../src/localcamerasource.cpp \
-    ../src/rtspsource.cpp \
-    ../src/rtspreconnectscheduler.cpp \
-    ../src/rtspconfiguration.cpp
+    ../src/media/videosourceworker.cpp \
+    ../src/media/ivideosource.cpp \
+    ../src/media/videofilesource.cpp \
+    ../src/media/localcamerasource.cpp \
+    ../src/media/rtspsource.cpp \
+    ../src/media/rtspreconnectscheduler.cpp \
+    ../src/media/rtspconfiguration.cpp \
+    ../src/app/appconfig.cpp
 
 HEADERS += \
-    ../src/videosourceworker.h \
-    ../src/ivideosource.h \
-    ../src/videofilesource.h \
-    ../src/localcamerasource.h \
-    ../src/rtspsource.h \
-    ../src/rtspreconnectscheduler.h \
-    ../src/rtspconfiguration.h
+    ../src/media/videosourceworker.h \
+    ../src/media/ivideosource.h \
+    ../src/media/videofilesource.h \
+    ../src/media/localcamerasource.h \
+    ../src/media/rtspsource.h \
+    ../src/media/rtspreconnectscheduler.h \
+    ../src/media/rtspconfiguration.h \
+    ../src/app/appconfig.h

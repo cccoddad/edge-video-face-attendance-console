@@ -1,6 +1,6 @@
-#include "../src/attendancerepository.h"
-#include "../src/attendancestatemachine.h"
-#include "../src/databasemigration.h"
+#include "../src/storage/attendancerepository.h"
+#include "../src/domain/attendancestatemachine.h"
+#include "../src/storage/databasemigration.h"
 
 #include <QCoreApplication>
 #include <QSqlDatabase>

@@ -20,17 +20,26 @@ win32 {
             -lopencv_videoio452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
-    ../src/appconfig.cpp \
-    ../src/ivideosource.cpp \
-    ../src/rtspconfiguration.cpp \
-    ../src/rtspreconnectscheduler.cpp \
-    ../src/rtspsource.cpp \
+    ../src/app/appconfig.cpp \
+    ../src/media/ivideosource.cpp \
+    ../src/media/rtspconfiguration.cpp \
+    ../src/media/rtspreconnectscheduler.cpp \
+    ../src/media/rtspsource.cpp \
     rtspsource_test.cpp
 
 HEADERS += \
-    ../src/appconfig.h \
-    ../src/ivideosource.h \
-    ../src/rtspconfiguration.h \
-    ../src/rtspreconnectscheduler.h \
-    ../src/rtspsource.h
+    ../src/app/appconfig.h \
+    ../src/media/ivideosource.h \
+    ../src/media/rtspconfiguration.h \
+    ../src/media/rtspreconnectscheduler.h \
+    ../src/media/rtspsource.h

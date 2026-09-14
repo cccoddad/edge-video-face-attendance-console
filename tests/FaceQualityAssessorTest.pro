@@ -35,9 +35,18 @@ win32 {
             -lSeetaNet
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     facequalityassessor_test.cpp \
-    ../src/facequalitypolicy.cpp
+    ../src/vision/facequalitypolicy.cpp
 
 HEADERS += \
-    ../src/facequalitypolicy.h
+    ../src/vision/facequalitypolicy.h

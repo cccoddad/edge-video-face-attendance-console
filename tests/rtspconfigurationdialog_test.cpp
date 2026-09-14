@@ -1,4 +1,4 @@
-#include "../src/rtspconfigurationdialog.h"
+#include "../src/media/rtspconfigurationdialog.h"
 
 #include <QApplication>
 #include <QDialogButtonBox>

@@ -1,4 +1,4 @@
-#include "../src/attendancereport.h"
+#include "../src/storage/attendancereport.h"
 
 #include <QCoreApplication>
 #include <QFile>

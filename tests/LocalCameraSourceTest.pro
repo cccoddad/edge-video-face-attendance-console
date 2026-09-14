@@ -20,13 +20,22 @@ win32 {
             -lopencv_videoio452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
-    ../src/appconfig.cpp \
-    ../src/ivideosource.cpp \
-    ../src/localcamerasource.cpp \
+    ../src/app/appconfig.cpp \
+    ../src/media/ivideosource.cpp \
+    ../src/media/localcamerasource.cpp \
     localcamerasource_test.cpp
 
 HEADERS += \
-    ../src/appconfig.h \
-    ../src/ivideosource.h \
-    ../src/localcamerasource.h
+    ../src/app/appconfig.h \
+    ../src/media/ivideosource.h \
+    ../src/media/localcamerasource.h

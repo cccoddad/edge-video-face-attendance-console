@@ -17,11 +17,20 @@ win32 {
     INCLUDEPATH += $$OPENCV_ROOT/include/opencv2
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
-    ../src/ivideosource.cpp \
-    ../src/videosourceruntimelog.cpp \
+    ../src/media/ivideosource.cpp \
+    ../src/monitor/videosourceruntimelog.cpp \
     videosourceruntimelog_test.cpp
 
 HEADERS += \
-    ../src/ivideosource.h \
-    ../src/videosourceruntimelog.h
+    ../src/media/ivideosource.h \
+    ../src/monitor/videosourceruntimelog.h

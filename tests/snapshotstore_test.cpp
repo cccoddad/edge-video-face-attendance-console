@@ -1,5 +1,5 @@
-#include "../src/appconfig.h"
-#include "../src/snapshotstore.h"
+#include "../src/app/appconfig.h"
+#include "../src/storage/snapshotstore.h"
 
 #include <QCoreApplication>
 #include <QDir>

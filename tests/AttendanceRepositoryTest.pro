@@ -6,13 +6,22 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     attendancerepository_test.cpp \
-    ../src/attendancerepository.cpp \
-    ../src/attendancestatemachine.cpp \
-    ../src/databasemigration.cpp
+    ../src/storage/attendancerepository.cpp \
+    ../src/domain/attendancestatemachine.cpp \
+    ../src/storage/databasemigration.cpp
 
 HEADERS += \
-    ../src/attendancerepository.h \
-    ../src/attendancestatemachine.h \
-    ../src/databasemigration.h
+    ../src/storage/attendancerepository.h \
+    ../src/domain/attendancestatemachine.h \
+    ../src/storage/databasemigration.h

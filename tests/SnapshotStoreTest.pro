@@ -20,11 +20,20 @@ win32 {
             -lopencv_imgcodecs452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
-    ../src/appconfig.cpp \
-    ../src/snapshotstore.cpp \
+    ../src/app/appconfig.cpp \
+    ../src/storage/snapshotstore.cpp \
     snapshotstore_test.cpp
 
 HEADERS += \
-    ../src/appconfig.h \
-    ../src/snapshotstore.h
+    ../src/app/appconfig.h \
+    ../src/storage/snapshotstore.h

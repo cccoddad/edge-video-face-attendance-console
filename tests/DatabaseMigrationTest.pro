@@ -6,9 +6,18 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     databasemigration_test.cpp \
-    ../src/databasemigration.cpp
+    ../src/storage/databasemigration.cpp
 
 HEADERS += \
-    ../src/databasemigration.h
+    ../src/storage/databasemigration.h

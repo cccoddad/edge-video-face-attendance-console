@@ -6,9 +6,18 @@ CONFIG -= app_bundle
 
 TEMPLATE = app
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     personnelimportexport_test.cpp \
-    ../src/personnelimportexport.cpp
+    ../src/storage/personnelimportexport.cpp
 
 HEADERS += \
-    ../src/personnelimportexport.h
+    ../src/storage/personnelimportexport.h

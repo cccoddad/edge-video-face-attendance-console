@@ -1,6 +1,6 @@
-#include "../src/attendancerepository.h"
-#include "../src/attendancestatemachine.h"
-#include "../src/checkoutconfirmation.h"
+#include "../src/storage/attendancerepository.h"
+#include "../src/domain/attendancestatemachine.h"
+#include "../src/domain/checkoutconfirmation.h"
 
 #include <QCoreApplication>
 #include <QSqlError>

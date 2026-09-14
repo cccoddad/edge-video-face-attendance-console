@@ -1,4 +1,4 @@
-#include "../src/videosourceruntimelog.h"
+#include "../src/monitor/videosourceruntimelog.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

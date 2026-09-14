@@ -1,5 +1,5 @@
-#include "../src/appconfig.h"
-#include "../src/rtspsource.h"
+#include "../src/app/appconfig.h"
+#include "../src/media/rtspsource.h"
 
 #include <QCoreApplication>
 #include <QDir>

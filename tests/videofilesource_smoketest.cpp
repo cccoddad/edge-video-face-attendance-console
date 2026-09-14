@@ -1,4 +1,4 @@
-#include "../src/videofilesource.h"
+#include "../src/media/videofilesource.h"
 
 #include <QCoreApplication>
 #include <QDebug>

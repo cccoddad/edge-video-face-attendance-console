@@ -21,11 +21,20 @@ win32 {
             -lopencv_videoio452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
-    ../src/ivideosource.cpp \
-    ../src/videofilesource.cpp \
+    ../src/media/ivideosource.cpp \
+    ../src/media/videofilesource.cpp \
     videofilesource_smoketest.cpp
 
 HEADERS += \
-    ../src/ivideosource.h \
-    ../src/videofilesource.h
+    ../src/media/ivideosource.h \
+    ../src/media/videofilesource.h

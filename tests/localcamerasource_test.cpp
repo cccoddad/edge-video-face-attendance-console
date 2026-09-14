@@ -1,5 +1,5 @@
-#include "../src/appconfig.h"
-#include "../src/localcamerasource.h"
+#include "../src/app/appconfig.h"
+#include "../src/media/localcamerasource.h"
 
 #include <QCoreApplication>
 

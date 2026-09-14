@@ -1,4 +1,4 @@
-#include "../src/videosourceworker.h"
+#include "../src/media/videosourceworker.h"
 
 #include <QCoreApplication>
 #include <QEventLoop>

@@ -21,19 +21,28 @@ win32 {
             -lopencv_imgcodecs452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     attendancewriter_test.cpp \
-    ../src/attendancewriter.cpp \
-    ../src/attendancerepository.cpp \
-    ../src/attendancestatemachine.cpp \
-    ../src/databasemigration.cpp \
-    ../src/snapshotstore.cpp \
-    ../src/appconfig.cpp
+    ../src/storage/attendancewriter.cpp \
+    ../src/storage/attendancerepository.cpp \
+    ../src/domain/attendancestatemachine.cpp \
+    ../src/storage/databasemigration.cpp \
+    ../src/storage/snapshotstore.cpp \
+    ../src/app/appconfig.cpp
 
 HEADERS += \
-    ../src/attendancewriter.h \
-    ../src/attendancerepository.h \
-    ../src/attendancestatemachine.h \
-    ../src/databasemigration.h \
-    ../src/snapshotstore.h \
-    ../src/appconfig.h
+    ../src/storage/attendancewriter.h \
+    ../src/storage/attendancerepository.h \
+    ../src/domain/attendancestatemachine.h \
+    ../src/storage/databasemigration.h \
+    ../src/storage/snapshotstore.h \
+    ../src/app/appconfig.h

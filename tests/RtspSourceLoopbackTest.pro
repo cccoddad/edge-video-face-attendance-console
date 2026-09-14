@@ -19,17 +19,26 @@ win32 {
             -lopencv_core452
 }
 
+INCLUDEPATH += \
+    $$PWD/../src/app \
+    $$PWD/../src/media \
+    $$PWD/../src/vision \
+    $$PWD/../src/domain \
+    $$PWD/../src/storage \
+    $$PWD/../src/monitor \
+    $$PWD/../src/ui
+
 SOURCES += \
     rtspsourceloopback_test.cpp \
-    ../src/rtspsource.cpp \
-    ../src/rtspreconnectscheduler.cpp \
-    ../src/rtspconfiguration.cpp \
-    ../src/appconfig.cpp \
-    ../src/ivideosource.cpp
+    ../src/media/rtspsource.cpp \
+    ../src/media/rtspreconnectscheduler.cpp \
+    ../src/media/rtspconfiguration.cpp \
+    ../src/app/appconfig.cpp \
+    ../src/media/ivideosource.cpp
 
 HEADERS += \
-    ../src/rtspsource.h \
-    ../src/rtspreconnectscheduler.h \
-    ../src/rtspconfiguration.h \
-    ../src/appconfig.h \
-    ../src/ivideosource.h
+    ../src/media/rtspsource.h \
+    ../src/media/rtspreconnectscheduler.h \
+    ../src/media/rtspconfiguration.h \
+    ../src/app/appconfig.h \
+    ../src/media/ivideosource.h

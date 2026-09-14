@@ -1,4 +1,4 @@
-#include "../src/attendancewriter.h"
+#include "../src/storage/attendancewriter.h"
 
 #include <QCoreApplication>
 #include <QDir>

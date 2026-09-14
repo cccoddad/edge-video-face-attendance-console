@@ -1,7 +1,7 @@
-#include "../src/appconfig.h"
-#include "../src/rtspconfiguration.h"
-#include "../src/rtspreconnectscheduler.h"
-#include "../src/rtspsource.h"
+#include "../src/app/appconfig.h"
+#include "../src/media/rtspconfiguration.h"
+#include "../src/media/rtspreconnectscheduler.h"
+#include "../src/media/rtspsource.h"
 
 #include <QCoreApplication>
 
