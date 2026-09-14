@@ -49,6 +49,7 @@ Run-Test "DatabaseMigrationTest" "$testBase\DatabaseMigrationTest\release\Databa
 Run-Test "AttendanceRepositoryTest" "$testBase\AttendanceRepositoryTest\release\AttendanceRepositoryTest.exe" @()
 Run-Test "PersonnelImportExportTest" "$testBase\PersonnelImportExportTest\release\PersonnelImportExportTest.exe" @()
 Run-Test "AttendanceWriterTest" "$testBase\AttendanceWriterTest\release\AttendanceWriterTest.exe" @()
+Run-Test "PerformanceMetricsTest" "$testBase\PerformanceMetricsTest\release\PerformanceMetricsTest.exe" @()
 
 $videoFixture = Join-Path $env:FACE_ATTENDANCE_DATA_DIR 'test-media\local-face-fixture.avi'
 if (Test-Path -LiteralPath $videoFixture) {

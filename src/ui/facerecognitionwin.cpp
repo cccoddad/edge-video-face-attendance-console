@@ -5,6 +5,7 @@
 #include "attendancewriter.h"
 #include "snapshotstore.h"
 #include "localcamerasource.h"
+#include "performancemetrics.h"
 #include "rtspconfigurationdialog.h"
 #include "rtspsource.h"
 #include "theme.h"
@@ -52,6 +53,8 @@ FaceRecognitionWin::FaceRecognitionWin(QWidget *parent)
        mRecognitionResults(0),
        mRecognitionLatencyTotalMilliseconds(0),
        mRecognitionLatencyMaximumMilliseconds(0),
+       mLastSampleFramesRead(0),
+       mLastSampleRecognitionResults(0),
        mAttendanceInserted(0),
        mAttendanceSuppressed(0),
        mAttendanceFailed(0),
@@ -323,6 +326,7 @@ void FaceRecognitionWin::recvQueryResult(int index, float similarty, quint64 req
         mRecognitionLatencyTotalMilliseconds += latencyMilliseconds;
         mRecognitionLatencyMaximumMilliseconds = qMax(mRecognitionLatencyMaximumMilliseconds,
                                                        latencyMilliseconds);
+        mRecognitionLatencySamples.append(latencyMilliseconds);
     }
     //打包查询质料
     qDebug()<<index<<similarty;
@@ -969,8 +973,10 @@ void FaceRecognitionWin::initializePerformanceLog()
     }
 
     mPerformanceLog.write("timestamp,elapsed_seconds,frames_read,recognition_requests,recognition_results,"
-                          "average_recognition_latency_ms,max_recognition_latency_ms,attendance_inserted,"
-                          "attendance_suppressed,attendance_failed,source_state,source_error\n");
+                          "average_recognition_latency_ms,max_recognition_latency_ms,"
+                          "p95_recognition_latency_ms,preview_fps,recognition_fps,"
+                          "attendance_inserted,attendance_suppressed,attendance_failed,"
+                          "attendance_write_failure_rate_percent,source_state,source_error\n");
     mPerformanceLog.flush();
     mPerformanceTimer.start();
 }
@@ -987,15 +993,24 @@ void FaceRecognitionWin::writePerformanceSample(bool force)
         return;
     }
 
+    const qint64 intervalMilliseconds = elapsedMilliseconds - mLastPerformanceSampleMilliseconds;
     const double averageLatency = mRecognitionResults == 0 ? 0.0
             : static_cast<double>(mRecognitionLatencyTotalMilliseconds) / mRecognitionResults;
+    const qint64 percentile95Latency =
+            PerformanceMetrics::percentile95(mRecognitionLatencySamples);
+    const double previewFps = PerformanceMetrics::framesPerSecond(
+                mFramesRead - mLastSampleFramesRead, intervalMilliseconds);
+    const double recognitionFps = PerformanceMetrics::framesPerSecond(
+                mRecognitionResults - mLastSampleRecognitionResults, intervalMilliseconds);
+    const double writeFailureRate = PerformanceMetrics::writeFailureRatePercent(
+                mAttendanceInserted, mAttendanceSuppressed, mAttendanceFailed);
     const QString sourceState = IVideoSource::stateText(mVideoSourceState)
             .replace(',', QStringLiteral(" "));
     QString sourceError = mVideoSourceError;
     sourceError.replace(',', QStringLiteral(" "));
     sourceError.replace('\r', QStringLiteral(" "));
     sourceError.replace('\n', QStringLiteral(" "));
-    const QString line = QStringLiteral("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12\n")
+    const QString line = QStringLiteral("%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11,%12,%13,%14,%15,%16\n")
             .arg(QDateTime::currentDateTime().toString(Qt::ISODateWithMs))
             .arg(elapsedMilliseconds / 1000.0, 0, 'f', 3)
             .arg(mFramesRead)
@@ -1003,14 +1018,20 @@ void FaceRecognitionWin::writePerformanceSample(bool force)
             .arg(mRecognitionResults)
             .arg(averageLatency, 0, 'f', 3)
             .arg(mRecognitionLatencyMaximumMilliseconds)
+            .arg(percentile95Latency)
+            .arg(previewFps, 0, 'f', 3)
+            .arg(recognitionFps, 0, 'f', 3)
             .arg(mAttendanceInserted)
             .arg(mAttendanceSuppressed)
             .arg(mAttendanceFailed)
+            .arg(writeFailureRate, 0, 'f', 3)
             .arg(sourceState)
             .arg(sourceError);
     mPerformanceLog.write(line.toUtf8());
     mPerformanceLog.flush();
     mLastPerformanceSampleMilliseconds = elapsedMilliseconds;
+    mLastSampleFramesRead = mFramesRead;
+    mLastSampleRecognitionResults = mRecognitionResults;
 }
 
 void FaceRecognitionWin::recordAttendanceWriteResult(AttendanceWriteStatus status)

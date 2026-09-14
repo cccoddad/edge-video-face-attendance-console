@@ -91,6 +91,7 @@ SOURCES += \
     storage/personnelimportexport.cpp \
     storage/attendancewriter.cpp \
     monitor/videosourceruntimelog.cpp \
+    monitor/performancemetrics.cpp \
     ui/facerecognitionwin.cpp \
     ui/qregisterwidget.cpp \
     ui/qquerywidget.cpp \
@@ -117,6 +118,7 @@ HEADERS += \
     storage/personnelimportexport.h \
     storage/attendancewriter.h \
     monitor/videosourceruntimelog.h \
+    monitor/performancemetrics.h \
     ui/facerecognitionwin.h \
     ui/qregisterwidget.h \
     ui/qquerywidget.h \

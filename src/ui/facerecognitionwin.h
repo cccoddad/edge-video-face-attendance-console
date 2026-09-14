@@ -7,6 +7,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QRect>
+#include <QVector>
 #include <memory>
 #include "attendancerepository.h"
 #include "attendancestatemachine.h"
@@ -127,6 +128,9 @@ private:
     quint64 mRecognitionResults;
     qint64 mRecognitionLatencyTotalMilliseconds;
     qint64 mRecognitionLatencyMaximumMilliseconds;
+    QVector<qint64> mRecognitionLatencySamples;
+    quint64 mLastSampleFramesRead;
+    quint64 mLastSampleRecognitionResults;
     QHash<quint64, qint64> mRecognitionRequestStartMilliseconds;
     quint64 mAttendanceInserted;
     quint64 mAttendanceSuppressed;
