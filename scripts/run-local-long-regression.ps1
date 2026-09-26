@@ -4,6 +4,12 @@ param(
     [string]$VideoPath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Camera')]
     [switch]$LocalCamera,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Rtsp')]
+    [ValidatePattern('^rtsp://.')]
+    [string]$RtspUrl,
+    [Parameter(ParameterSetName = 'Rtsp')]
+    [ValidateRange(500, 60000)]
+    [int]$RtspReconnectIntervalMs = 3000,
     [ValidateRange(0, 15)]
     [int]$LocalCameraIndex = 0,
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
@@ -69,6 +75,10 @@ $savedEnvironment = @(
     Save-EnvironmentValue 'FACE_ATTENDANCE_LOCAL_CAMERA_INDEX'
     Save-EnvironmentValue 'FACE_ATTENDANCE_AUTO_OPEN_VIDEO_PATH'
     Save-EnvironmentValue 'FACE_ATTENDANCE_AUTO_OPEN_LOCAL_CAMERA'
+    Save-EnvironmentValue 'FACE_ATTENDANCE_AUTO_OPEN_RTSP'
+    Save-EnvironmentValue 'FACE_ATTENDANCE_RTSP_URL'
+    Save-EnvironmentValue 'FACE_ATTENDANCE_RTSP_RECONNECT_INTERVAL_MS'
+    Save-EnvironmentValue 'FACE_ATTENDANCE_FFMPEG_PATH'
     Save-EnvironmentValue 'FACE_ATTENDANCE_PERFORMANCE_LOG_PATH'
     Save-EnvironmentValue 'FACE_ATTENDANCE_PERFORMANCE_LOG_INTERVAL_MS'
     Save-EnvironmentValue 'FACE_ATTENDANCE_DATABASE_AUDIT_PATH'
@@ -88,9 +98,23 @@ try {
     if ($LocalCamera) {
         $env:FACE_ATTENDANCE_AUTO_OPEN_LOCAL_CAMERA = '1'
         Remove-Item Env:FACE_ATTENDANCE_AUTO_OPEN_VIDEO_PATH -ErrorAction SilentlyContinue
+        Remove-Item Env:FACE_ATTENDANCE_AUTO_OPEN_RTSP -ErrorAction SilentlyContinue
+    } elseif ($PSCmdlet.ParameterSetName -eq 'Rtsp') {
+        $env:FACE_ATTENDANCE_AUTO_OPEN_RTSP = '1'
+        $env:FACE_ATTENDANCE_RTSP_URL = $RtspUrl
+        $env:FACE_ATTENDANCE_RTSP_RECONNECT_INTERVAL_MS = [string]$RtspReconnectIntervalMs
+        if ([string]::IsNullOrWhiteSpace($env:FACE_ATTENDANCE_FFMPEG_PATH)) {
+            $defaultFfmpeg = 'D:\qtdeps\ffmpeg\bin\ffmpeg.exe'
+            if (Test-Path -LiteralPath $defaultFfmpeg -PathType Leaf) {
+                $env:FACE_ATTENDANCE_FFMPEG_PATH = $defaultFfmpeg
+            }
+        }
+        Remove-Item Env:FACE_ATTENDANCE_AUTO_OPEN_VIDEO_PATH -ErrorAction SilentlyContinue
+        Remove-Item Env:FACE_ATTENDANCE_AUTO_OPEN_LOCAL_CAMERA -ErrorAction SilentlyContinue
     } else {
         $env:FACE_ATTENDANCE_AUTO_OPEN_VIDEO_PATH = (Resolve-Path -LiteralPath $VideoPath).Path
         Remove-Item Env:FACE_ATTENDANCE_AUTO_OPEN_LOCAL_CAMERA -ErrorAction SilentlyContinue
+        Remove-Item Env:FACE_ATTENDANCE_AUTO_OPEN_RTSP -ErrorAction SilentlyContinue
     }
 
     'timestamp,cpu_percent,working_set_mb,private_memory_mb,handles,threads' | Set-Content -LiteralPath $processSamples -Encoding utf8
@@ -123,6 +147,7 @@ try {
     $process.WaitForExit()
     @(
         "source=$($PSCmdlet.ParameterSetName)"
+        "rtsp_url=$(if ($PSCmdlet.ParameterSetName -eq 'Rtsp') { $RtspUrl -replace '//[^/@]*@', '//***@' } else { '' })"
         "local_camera_index=$LocalCameraIndex"
         "duration_minutes=$DurationMinutes"
         "process_exit_code=$($process.ExitCode)"
