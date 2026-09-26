@@ -42,6 +42,7 @@ private:
     VideoSourceState m_state;
     RtspReconnectScheduler mReconnectScheduler;
     qint64 m_lastActivityMsecs;
+    int m_reconnectFailures;
 };
 
 #endif // RTSPSOURCE_H

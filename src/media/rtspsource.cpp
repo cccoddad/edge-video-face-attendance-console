@@ -44,6 +44,7 @@ RtspSource::RtspSource(int reconnectIntervalMilliseconds)
     , m_state(VideoSourceState::Closed)
     , mReconnectScheduler(reconnectIntervalMilliseconds)
     , m_lastActivityMsecs(0)
+    , m_reconnectFailures(0)
 {
 }
 
@@ -105,6 +106,7 @@ void RtspSource::close()
             || m_state == VideoSourceState::Interrupted || m_state == VideoSourceState::Reconnecting;
     releaseCapture();
     mReconnectScheduler.clear();
+    m_reconnectFailures = 0;
     if (wasActive) {
         m_state = VideoSourceState::Stopped;
     }
@@ -241,6 +243,7 @@ bool RtspSource::connectToStream(bool reconnecting, QString *errorMessage)
     if (openCapture(m_location)) {
         m_state = VideoSourceState::Playing;
         m_lastError.clear();
+        m_reconnectFailures = 0;
         return true;
     }
 
@@ -248,11 +251,19 @@ bool RtspSource::connectToStream(bool reconnecting, QString *errorMessage)
     if (detail.isEmpty()) {
         detail = QString::fromUtf8(m_processLog);
     }
-    const QString message = reconnecting
-            ? (detail.isEmpty() ? QStringLiteral("RTSP 重连失败，将继续等待")
-                                : QStringLiteral("RTSP 重连失败，将继续等待：%1").arg(detail))
-            : (detail.isEmpty() ? QStringLiteral("无法使用 FFmpeg 连接 RTSP 视频源")
-                                : QStringLiteral("无法使用 FFmpeg 连接 RTSP 视频源：%1").arg(detail));
+    QString message;
+    if (reconnecting) {
+        const QString base = detail.isEmpty()
+                ? QStringLiteral("RTSP 重连失败，将继续等待")
+                : QStringLiteral("RTSP 重连失败，将继续等待：%1").arg(detail);
+        ++m_reconnectFailures;
+        message = (m_reconnectFailures == 1 || m_reconnectFailures % 10 == 0)
+                ? QStringLiteral("%1（已尝试 %2 次）").arg(base).arg(m_reconnectFailures)
+                : base;
+    } else {
+        message = detail.isEmpty() ? QStringLiteral("无法使用 FFmpeg 连接 RTSP 视频源")
+                                   : QStringLiteral("无法使用 FFmpeg 连接 RTSP 视频源：%1").arg(detail);
+    }
     if (reconnecting) {
         setInterrupted(message);
     } else {

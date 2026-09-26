@@ -678,6 +678,7 @@ void FaceRecognitionWin::handleSourceStateChanged(int state, const QString &erro
         updateAttendanceStatus(QStringLiteral("视频输入已恢复，继续识别"));
     }
     updateVideoSourceStatus();
+    writePerformanceSample(true);
 }
 
 void FaceRecognitionWin::handleSourceReadFinished(int state)
