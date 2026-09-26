@@ -12,5 +12,11 @@ $env:PATH = 'D:\QT\5.12.0\mingw73_64\bin;D:\QT\Tools\mingw730_64\bin;D:\qtdeps\o
 $env:FACE_ATTENDANCE_MODEL_DIR = 'D:\qtdeps\SeetaFace\bin\model'
 $env:FACE_ATTENDANCE_DATA_DIR = Join-Path $repoRoot 'runtime-data'
 $env:FACE_ATTENDANCE_LOCAL_VIDEO_LOOP = '1'
+if ([string]::IsNullOrWhiteSpace($env:FACE_ATTENDANCE_FFMPEG_PATH)) {
+    $defaultFfmpeg = 'D:\qtdeps\ffmpeg\bin\ffmpeg.exe'
+    if (Test-Path -LiteralPath $defaultFfmpeg -PathType Leaf) {
+        $env:FACE_ATTENDANCE_FFMPEG_PATH = $defaultFfmpeg
+    }
+}
 
 & $application
