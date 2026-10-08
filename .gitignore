@@ -24,3 +24,7 @@ dist/
 # Personal face sample retained only on the local machine; it is not used by the application.
 src/e4bd95e99d92e5beb7.jpg
 src/image.qrc
+
+# Personal job-hunting materials — never publish to this repo
+/doc/06-人脸考勤项目面试答辩手册.docx
+/doc/11-简历项目经历-智能视觉考勤终端.md

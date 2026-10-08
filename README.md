@@ -29,16 +29,16 @@ RTSP 链路（本机回环 / 跨机联调 / 延时抖动 / 周期断连 / 真实
 
 ```mermaid
 flowchart LR
-    F["本地视频文件"] --> W
+    F["本地视频文件"] --> W["VideoSourceWorker<br/>40ms 轮询读帧"]
     C["Windows 摄像头<br/>DSHOW → MSMF"] --> W
-    R["RTSP 网络流<br/>ffmpeg 子进程 · stdout BGR"] --> W
-    W["VideoSourceWorker<br/>40ms 轮询读帧"] -->|frameReady 等 5 个排队信号| UI["UI 线程<br/>显示 · 投递判断"]
-    UI -->|"clone 帧 · 200ms 限流 · 单任务在途"| ID["QFaceObject 线程<br/>跟踪 → 质量门控 → 特征比对"]
-    ID -->|"相似度 ≥ 0.70"| UI
-    UI --> SM["考勤状态机<br/>连续 3 帧确认 · 30s 冷却 · 4h 自动签退"]
+    R["RTSP 网络流<br/>ffmpeg 子进程 stdout BGR"] --> W
+    W -->|frameReady 等 5 个排队信号| UI["UI 线程<br/>显示与投递判断"]
+    UI -->|clone 帧、200ms 限流、单任务在途| ID["QFaceObject 线程<br/>跟踪 → 质量门控 → 特征比对"]
+    ID -->|相似度 ≥ 0.70| UI
+    UI --> SM["考勤状态机<br/>连续 3 帧确认、30s 冷却、4h 自动签退"]
     SM -->|event_key 事务写入| WR["AttendanceWriter 线程<br/>独立 SQLite 连接"]
-    WR --> DB[("SQLite<br/>recorduser / user")]
-    WR --> JPG["JPEG 抓拍<br/>提交后保存 · 30 天保留"]
+    WR --> DB[(SQLite<br/>recorduser / user)]
+    WR --> JPG["JPEG 抓拍<br/>提交后保存、30 天保留"]
 ```
 
 | 设计点 | 方案 |
@@ -97,7 +97,6 @@ doc/           实施记录、问题复盘、面试材料、RK3568 协作边界
 | [doc/01-项目实施记录与下一步.md](doc/01-项目实施记录与下一步.md) | 逐轮实施与验证记录（2.30–2.40），日常开发以此为准 |
 | [doc/03-项目问题汇总-面试版.md](doc/03-项目问题汇总-面试版.md) | 面试口径与高频问题 |
 | [doc/05-RK3568协作边界.md](doc/05-RK3568协作边界.md) | 与上游网关的强制协作边界 |
-| [doc/13-本轮开发总结与下一步交接.md](doc/13-本轮开发总结与下一步交接.md) | 交接清单与下一步；继续开发前先读 |
 
 ## 技术边界
 
