@@ -26,5 +26,7 @@ src/e4bd95e99d92e5beb7.jpg
 src/image.qrc
 
 # Personal job-hunting materials — never publish to this repo
+/doc/03-项目问题汇总-面试版.md
 /doc/06-人脸考勤项目面试答辩手册.docx
 /doc/11-简历项目经历-智能视觉考勤终端.md
+/doc/14-简历表述与面试追问（本地不入库）.md

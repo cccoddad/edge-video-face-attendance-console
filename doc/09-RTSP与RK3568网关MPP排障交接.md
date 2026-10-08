@@ -79,7 +79,7 @@ return Result<std::vector<EncodedPacket>>::Failure(
 
 ## 4. 下一步严格顺序
 
-1. 先阅读 `AGENTS.md`、`doc/01-项目实施记录与下一步.md`、本文件、`doc/02-项目问题汇总-通俗版.md` 和 `doc/03-项目问题汇总-面试版.md`，再检查 Qt Git 状态、网关源文件和板端进程/端口。
+1. 先阅读 `AGENTS.md`、`doc/01-项目实施记录与下一步.md`、本文件和 `doc/02-项目问题汇总-通俗版.md`，再检查 Qt Git 状态、网关源文件和板端进程/端口。
 2. 只修复第 3 节的 C++ 语法缺口，构建网关到新的唯一输出目录；不能修改旧部署二进制，也不能把未完成代码覆盖到旧证据目录。
 3. 使用有外层时限的单次网关测试，先验证：进程在预期时长后退出、日志不再出现配置/RGA/提交帧错误、唯一命名 `.h264` 文件非空。把文件拉到 Ubuntu 用解析工具验证 NAL/H.264；此时才能说“网关原始 H.264 输出通过”。
 4. H.264 未通过前，禁止写 RTSP 服务端。H.264 通过后再提出 RTSP 设计：协议服务、端口、路径、H.264 参数集、单客户端/多客户端、断流行为、认证和只读访问。新增监听 `8554` 前应先报告影响和验证方案。
@@ -91,7 +91,7 @@ return Result<std::vector<EncodedPacket>>::Failure(
 ```text
 接手 Windows Qt 人脸考勤控制台与经授权的 RK3568 网关 MPP 排障。先在
 D:\vs-document\Real-Time Face Recognition Application Based on Qt and OpenCV
-执行 git status、当前分支和 git log；完整阅读 README.md、AGENTS.md、doc/00-文档目录.md、doc/01-项目实施记录与下一步.md、doc/02-项目问题汇总-通俗版.md、doc/03-项目问题汇总-面试版.md、doc/05-RK3568协作边界.md、doc/07-本轮开发与演示总结.md、doc/09-RTSP与RK3568网关MPP排障交接.md 和 .cursor/rules/*.mdc。保留已有修改，绝不使用 git reset、git checkout、git clean、强制覆盖或删除既有成果。
+执行 git status、当前分支和 git log；完整阅读 README.md、AGENTS.md、doc/00-文档目录.md、doc/01-项目实施记录与下一步.md、doc/02-项目问题汇总-通俗版.md、doc/05-RK3568协作边界.md、doc/07-本轮开发与演示总结.md、doc/09-RTSP与RK3568网关MPP排障交接.md 和 .cursor/rules/*.mdc。保留已有修改，绝不使用 git reset、git checkout、git clean、强制覆盖或删除既有成果。
 
 永久沟通规则：每完成一次完整的思考、检查、修改、构建、测试或 Git 操作后，必须立即用中文说明：1）做了什么；2）为什么；3）实际证据/结果；4）本次专有名词的一句通俗解释。未验证必须明确写“未验证”。需要我操作时，必须给出运行位置、完整可粘贴命令、前提、目的、预期结果和失败时需返回的完整输出/截图，不能把命令藏在思考里。
 
